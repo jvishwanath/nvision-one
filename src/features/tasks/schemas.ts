@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 export const TaskPriority = z.enum(["low", "medium", "high", "urgent"]);
 export type TaskPriority = z.infer<typeof TaskPriority>;

@@ -2,7 +2,7 @@
 
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, Trash2, Calendar } from "lucide-react";
+import { Check, Trash2, Calendar, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Task } from "../types";
 
@@ -10,6 +10,7 @@ interface TaskCardProps {
     task: Task;
     onToggle: (id: string) => void;
     onDelete: (id: string) => void;
+    onEdit: (task: Task) => void;
 }
 
 const priorityVariant: Record<Task["priority"], "default" | "primary" | "success" | "warning" | "destructive"> = {
@@ -19,7 +20,7 @@ const priorityVariant: Record<Task["priority"], "default" | "primary" | "success
     urgent: "destructive",
 };
 
-export function TaskCard({ task, onToggle, onDelete }: TaskCardProps) {
+export function TaskCard({ task, onToggle, onDelete, onEdit }: TaskCardProps) {
     return (
         <Card className="animate-fade-in">
             <div className="flex items-start gap-3">
@@ -65,13 +66,22 @@ export function TaskCard({ task, onToggle, onDelete }: TaskCardProps) {
                     </div>
                 </div>
 
-                {/* Delete */}
-                <button
-                    onClick={() => onDelete(task.id)}
-                    className="shrink-0 h-8 w-8 flex items-center justify-center rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                >
-                    <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                <div className="shrink-0 flex items-center gap-1">
+                    <button
+                        onClick={() => onEdit(task)}
+                        className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                        aria-label={`Edit ${task.title}`}
+                    >
+                        <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                        onClick={() => onDelete(task.id)}
+                        className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                        aria-label={`Delete ${task.title}`}
+                    >
+                        <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                </div>
             </div>
         </Card>
     );

@@ -10,6 +10,7 @@ interface TravelState {
     loading: boolean;
     loadTrips: () => Promise<void>;
     addTrip: (input: CreateTripInput) => Promise<void>;
+    updateTrip: (id: string, changes: Partial<Trip>) => Promise<void>;
     deleteTrip: (id: string) => Promise<void>;
     selectTrip: (trip: Trip | null) => Promise<void>;
     addItineraryItem: (input: CreateItineraryItemInput) => Promise<void>;
@@ -39,6 +40,20 @@ export const useTravelStore = create<TravelState>((set, get) => ({
             await get().loadTrips();
         } catch (err) {
             logger.error("Failed to add trip", err);
+        }
+    },
+
+    updateTrip: async (id, changes) => {
+        try {
+            await travelRepository.updateTrip(id, changes);
+            const { selectedTrip } = get();
+            if (selectedTrip?.id === id) {
+                const refreshed = await travelRepository.getTripById(id);
+                set({ selectedTrip: refreshed ?? null });
+            }
+            await get().loadTrips();
+        } catch (err) {
+            logger.error("Failed to update trip", err);
         }
     },
 

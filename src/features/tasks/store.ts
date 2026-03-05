@@ -36,8 +36,8 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
     addTask: async (input) => {
         try {
-            await taskRepository.create(input);
-            await get().loadTasks();
+            const task = await taskRepository.create(input);
+            set((state) => ({ tasks: [task, ...state.tasks] }));
         } catch (err) {
             logger.error("Failed to add task", err);
         }
@@ -45,8 +45,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
     updateTask: async (id, changes) => {
         try {
-            await taskRepository.update(id, changes);
-            await get().loadTasks();
+            const updated = await taskRepository.update(id, changes);
+            set((state) => ({
+                tasks: state.tasks.map((task) => (task.id === id ? updated : task)),
+            }));
         } catch (err) {
             logger.error("Failed to update task", err);
         }
@@ -55,7 +57,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     deleteTask: async (id) => {
         try {
             await taskRepository.remove(id);
-            await get().loadTasks();
+            set((state) => ({ tasks: state.tasks.filter((task) => task.id !== id) }));
         } catch (err) {
             logger.error("Failed to delete task", err);
         }
@@ -63,8 +65,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
     toggleTask: async (id) => {
         try {
-            await taskRepository.toggleComplete(id);
-            await get().loadTasks();
+            const updated = await taskRepository.toggleComplete(id);
+            set((state) => ({
+                tasks: state.tasks.map((task) => (task.id === id ? updated : task)),
+            }));
         } catch (err) {
             logger.error("Failed to toggle task", err);
         }

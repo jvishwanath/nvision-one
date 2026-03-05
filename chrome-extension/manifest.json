@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "LifeOS Side Panel",
+  "description": "Open LifeOS in a Chrome side panel with configurable base URL.",
+  "version": "0.1.0",
+  "permissions": ["storage", "sidePanel", "tabs"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "action": {
+    "default_title": "Open LifeOS Side Panel"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  }
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,6 +18,12 @@ export function NoteEditor({ open, onClose, onSubmit, initialData }: NoteEditorP
     const [title, setTitle] = useState(initialData?.title ?? "");
     const [content, setContent] = useState(initialData?.content ?? "");
     const [tagsInput, setTagsInput] = useState(initialData?.tags.join(", ") ?? "");
+
+    useEffect(() => {
+        setTitle(initialData?.title ?? "");
+        setContent(initialData?.content ?? "");
+        setTagsInput(initialData?.tags.join(", ") ?? "");
+    }, [initialData, open]);
 
     const handleSubmit = () => {
         if (!title.trim()) return;

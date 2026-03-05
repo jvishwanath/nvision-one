@@ -1,22 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
-import type { CreateTripInput } from "../types";
+import type { CreateTripInput, Trip } from "../types";
 
 interface TripFormProps {
     open: boolean;
     onClose: () => void;
     onSubmit: (data: CreateTripInput) => void;
+    initialData?: Trip;
 }
 
-export function TripForm({ open, onClose, onSubmit }: TripFormProps) {
-    const [name, setName] = useState("");
-    const [destination, setDestination] = useState("");
-    const [startDate, setStartDate] = useState("");
-    const [endDate, setEndDate] = useState("");
+export function TripForm({ open, onClose, onSubmit, initialData }: TripFormProps) {
+    const [name, setName] = useState(initialData?.name ?? "");
+    const [destination, setDestination] = useState(initialData?.destination ?? "");
+    const [startDate, setStartDate] = useState(initialData?.startDate ?? "");
+    const [endDate, setEndDate] = useState(initialData?.endDate ?? "");
+
+    useEffect(() => {
+        setName(initialData?.name ?? "");
+        setDestination(initialData?.destination ?? "");
+        setStartDate(initialData?.startDate ?? "");
+        setEndDate(initialData?.endDate ?? "");
+    }, [initialData, open]);
 
     const handleSubmit = () => {
         if (!name.trim() || !destination.trim() || !startDate || !endDate) return;
@@ -34,7 +42,7 @@ export function TripForm({ open, onClose, onSubmit }: TripFormProps) {
     };
 
     return (
-        <Dialog open={open} onClose={onClose} title="New Trip">
+        <Dialog open={open} onClose={onClose} title={initialData ? "Edit Trip" : "New Trip"}>
             <div className="space-y-4">
                 <Input
                     id="trip-name"
@@ -68,7 +76,7 @@ export function TripForm({ open, onClose, onSubmit }: TripFormProps) {
                     />
                 </div>
                 <Button onClick={handleSubmit} className="w-full">
-                    Create Trip
+                    {initialData ? "Update Trip" : "Create Trip"}
                 </Button>
             </div>
         </Dialog>

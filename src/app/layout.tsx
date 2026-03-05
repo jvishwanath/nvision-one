@@ -1,18 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AuthSessionProvider } from "@/components/auth-session-provider";
 import { BottomNav } from "@/components/bottom-nav";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: "LifeOS",
@@ -43,15 +33,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <ThemeProvider>
-          <main className="min-h-dvh pb-20 max-w-lg mx-auto">
-            {children}
-          </main>
-          <BottomNav />
-        </ThemeProvider>
+      <body className="antialiased">
+        <AuthSessionProvider>
+          <ThemeProvider>
+            <main className="min-h-dvh pb-20 max-w-lg mx-auto">
+              {children}
+            </main>
+            <BottomNav />
+          </ThemeProvider>
+        </AuthSessionProvider>
       </body>
     </html>
   );

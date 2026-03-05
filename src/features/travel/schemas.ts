@@ -1,4 +1,15 @@
-import { z } from "zod/v4";
+import { z } from "zod";
+
+export const ItineraryTagSchema = z.enum([
+    "flight",
+    "car",
+    "place",
+    "restaurant",
+    "ticket",
+    "hotel",
+    "experience",
+]);
+export type ItineraryTag = z.infer<typeof ItineraryTagSchema>;
 
 export const TripSchema = z.object({
     id: z.string(),
@@ -21,6 +32,7 @@ export const ItineraryItemSchema = z.object({
     activity: z.string().min(1, "Activity is required"),
     time: z.string(),
     notes: z.string(),
+    tag: ItineraryTagSchema.default("experience"),
 });
 
 export type ItineraryItem = z.infer<typeof ItineraryItemSchema>;

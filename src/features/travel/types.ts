@@ -1,1 +1,7 @@
-export type { Trip, CreateTripInput, ItineraryItem, CreateItineraryItemInput } from "./schemas";
+export type {
+    Trip,
+    CreateTripInput,
+    ItineraryItem,
+    CreateItineraryItemInput,
+    ItineraryTag,
+} from "./schemas";

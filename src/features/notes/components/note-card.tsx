@@ -2,15 +2,16 @@
 
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import type { Note } from "../types";
 
 interface NoteCardProps {
     note: Note;
     onDelete: (id: string) => void;
+    onEdit: (note: Note) => void;
 }
 
-export function NoteCard({ note, onDelete }: NoteCardProps) {
+export function NoteCard({ note, onDelete, onEdit }: NoteCardProps) {
     return (
         <Card className="animate-fade-in">
             <div className="flex items-start justify-between gap-2">
@@ -39,12 +40,22 @@ export function NoteCard({ note, onDelete }: NoteCardProps) {
                         })}
                     </p>
                 </div>
-                <button
-                    onClick={() => onDelete(note.id)}
-                    className="shrink-0 h-8 w-8 flex items-center justify-center rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                >
-                    <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                <div className="shrink-0 flex items-center gap-1">
+                    <button
+                        onClick={() => onEdit(note)}
+                        className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                        aria-label={`Edit ${note.title}`}
+                    >
+                        <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                        onClick={() => onDelete(note.id)}
+                        className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                        aria-label={`Delete ${note.title}`}
+                    >
+                        <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                </div>
             </div>
         </Card>
     );

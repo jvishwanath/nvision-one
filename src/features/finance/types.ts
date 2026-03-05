@@ -1,1 +1,7 @@
-export type { Trade, TradeType, CreateTradeInput, PortfolioPosition } from "./schemas";
+export type {
+    Trade,
+    TradeType,
+    CreateTradeInput,
+    PortfolioPosition,
+    WatchlistEntry,
+} from "./schemas";

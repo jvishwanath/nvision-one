@@ -1,127 +1,232 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Plus, TrendingUp, TrendingDown, DollarSign } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
+import { useSearchParams } from "next/navigation";
+import {
+    RefreshCw,
+    Plus,
+    X,
+    ArrowUpRight,
+    ArrowDownRight,
+} from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useFinanceStore } from "../store";
-import { TradeForm } from "./trade-form";
-import { formatCurrency } from "@/lib/utils";
+
+function formatPrice(value: number, currency = "USD") {
+    return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency,
+        maximumFractionDigits: 2,
+    }).format(value);
+}
 
 export function PortfolioView() {
-    const { trades, portfolio, cashBalance, loading, loadTrades, executeTrade } =
-        useFinanceStore();
-    const [formOpen, setFormOpen] = useState(false);
+    const searchParams = useSearchParams();
+    const { quotes, loading, error, refresh, addSymbol, removeSymbol } = useFinanceStore();
+    const [symbolInput, setSymbolInput] = useState("");
+    const [adding, setAdding] = useState(false);
+    const [swipedId, setSwipedId] = useState<string | null>(null);
+    const pointerStartXRef = useRef<number | null>(null);
 
     useEffect(() => {
-        loadTrades();
-    }, [loadTrades]);
+        refresh();
+    }, [refresh]);
 
-    const totalPortfolioValue = portfolio.reduce((acc, p) => acc + p.totalValue, 0);
-    const totalPnl = portfolio.reduce((acc, p) => acc + p.pnl, 0);
-    const totalValue = cashBalance + totalPortfolioValue;
+    useEffect(() => {
+        let intervalId: number | undefined;
+
+        const start = () => {
+            if (intervalId) return;
+            intervalId = window.setInterval(() => {
+                if (document.visibilityState === "visible") {
+                    refresh();
+                }
+            }, 60_000);
+        };
+
+        const stop = () => {
+            if (!intervalId) return;
+            window.clearInterval(intervalId);
+            intervalId = undefined;
+        };
+
+        const onVisibilityChange = () => {
+            if (document.visibilityState === "visible") {
+                refresh();
+                start();
+            } else {
+                stop();
+            }
+        };
+
+        start();
+        document.addEventListener("visibilitychange", onVisibilityChange);
+
+        return () => {
+            stop();
+            document.removeEventListener("visibilitychange", onVisibilityChange);
+        };
+    }, [refresh]);
+
+    useEffect(() => {
+        if (searchParams.get("create") === "true") {
+            const input = document.getElementById("add-symbol") as HTMLInputElement | null;
+            input?.focus();
+        }
+    }, [searchParams]);
+
+    const handleAdd = async () => {
+        if (!symbolInput.trim()) return;
+        setAdding(true);
+        try {
+            await addSymbol(symbolInput);
+            setSymbolInput("");
+        } finally {
+            setAdding(false);
+        }
+    };
+
+    const placeholderRows = useMemo(() => Array.from({ length: 4 }), []);
+
+    const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+        if (!event.isPrimary) return;
+        pointerStartXRef.current = event.clientX;
+    };
+
+    const handlePointerEnd = (event: ReactPointerEvent<HTMLDivElement>, quoteId: string) => {
+        const startX = pointerStartXRef.current;
+        const endX = event.clientX;
+        pointerStartXRef.current = null;
+        if (startX === null || endX === null) return;
+        const deltaX = endX - startX;
+        if (deltaX < -40) {
+            setSwipedId(quoteId);
+        } else if (deltaX > 20 && swipedId === quoteId) {
+            setSwipedId(null);
+        }
+    };
 
     return (
-        <div className="space-y-4">
-            {/* Summary Cards */}
-            <div className="grid grid-cols-2 gap-3">
-                <Card className="gradient-primary text-white border-0">
-                    <p className="text-[10px] uppercase tracking-wider opacity-80">Net Worth</p>
-                    <p className="text-xl font-bold mt-1">{formatCurrency(totalValue)}</p>
-                </Card>
-                <Card>
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Cash</p>
-                    <p className="text-xl font-bold mt-1 flex items-center gap-1">
-                        <DollarSign className="h-4 w-4 text-primary" />
-                        {formatCurrency(cashBalance)}
-                    </p>
-                </Card>
+        <div className="space-y-5">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h2 className="text-lg font-bold">Watchlist</h2>
+                    <p className="text-xs text-muted-foreground">Track your favorite tickers in real time</p>
+                </div>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Refresh quotes"
+                    onClick={refresh}
+                    disabled={loading}
+                >
+                    <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                </Button>
             </div>
 
-            {/* Total P&L */}
-            {portfolio.length > 0 && (
-                <Card>
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">Total P&L</span>
-                        <span className={`text-sm font-bold flex items-center gap-1 ${totalPnl >= 0 ? "text-green-500" : "text-red-500"}`}>
-                            {totalPnl >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-                            {formatCurrency(totalPnl)}
-                        </span>
-                    </div>
-                </Card>
-            )}
+            <Card className="p-3 space-y-3">
+                <div className="flex items-center gap-2">
+                    <Input
+                        id="add-symbol"
+                        placeholder="Add ticker (e.g. AAPL)"
+                        value={symbolInput}
+                        onChange={(e) => setSymbolInput(e.target.value.toUpperCase())}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                                e.preventDefault();
+                                handleAdd();
+                            }
+                        }}
+                    />
+                    <Button onClick={handleAdd} disabled={adding || !symbolInput.trim()}>
+                        <Plus className="h-4 w-4 mr-1" />
+                        Add
+                    </Button>
+                </div>
+                {error && (
+                    <p className="text-xs text-destructive bg-destructive/10 px-3 py-2 rounded-lg">
+                        {error}
+                    </p>
+                )}
+            </Card>
 
-            {/* Positions */}
-            <div>
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                    Positions
-                </h3>
-                {portfolio.length === 0 ? (
-                    <Card>
-                        <p className="text-sm text-muted-foreground text-center py-4">
-                            No positions yet — execute a trade to start
+            <div className="space-y-2">
+                {loading &&
+                    placeholderRows.map((_, idx) => (
+                        <Card
+                            key={`skeleton-${idx}`}
+                            className="p-3 animate-pulse bg-muted/40 border-dashed"
+                        >
+                            <div className="h-4 bg-muted rounded w-1/2" />
+                            <div className="h-3 bg-muted rounded w-1/3 mt-2" />
+                        </Card>
+                    ))}
+
+                {!loading && quotes.length === 0 && (
+                    <Card className="p-4 text-center">
+                        <p className="text-sm text-muted-foreground">
+                            Add a symbol to get started.
                         </p>
                     </Card>
-                ) : (
-                    <div className="space-y-2">
-                        {portfolio.map((pos) => (
-                            <Card key={pos.symbol} className="animate-fade-in">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-sm font-bold">{pos.symbol}</p>
-                                        <p className="text-[10px] text-muted-foreground">
-                                            {pos.quantity} shares @ {formatCurrency(pos.avgCost)}
+                )}
+
+                {!loading &&
+                    quotes.map((quote) => {
+                        const isUp = quote.change >= 0;
+                        const changeClass = isUp ? "text-emerald-500" : "text-rose-500";
+
+                        return (
+                            <div
+                                key={quote.id}
+                                className="relative overflow-hidden rounded-xl"
+                                onPointerDown={handlePointerDown}
+                                onPointerUp={(event) => handlePointerEnd(event, quote.id)}
+                                onPointerCancel={() => {
+                                    pointerStartXRef.current = null;
+                                }}
+                            >
+                                <div className="absolute inset-y-0 right-0 w-20 flex items-center justify-center bg-destructive/15">
+                                    <button
+                                        onClick={() => {
+                                            removeSymbol(quote.id);
+                                            setSwipedId(null);
+                                        }}
+                                        className="h-9 w-9 rounded-lg bg-destructive text-destructive-foreground active:scale-95 transition-all flex items-center justify-center"
+                                        aria-label={`Remove ${quote.symbol}`}
+                                        title={`Remove ${quote.symbol}`}
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </button>
+                                </div>
+
+                                <Card
+                                    className={`px-3 py-2 flex items-center gap-2 transition-transform duration-200 ${swipedId === quote.id ? "-translate-x-20" : "translate-x-0"}`}
+                                >
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-mono text-xs font-semibold tracking-tight text-foreground">
+                                                {quote.symbol}
+                                            </span>
+                                            <p className="text-xs text-muted-foreground truncate">{quote.name}</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right leading-tight">
+                                        <p className="text-sm font-semibold">
+                                            {formatPrice(quote.price, quote.currency)}
+                                        </p>
+                                        <p className={`text-[11px] font-semibold ${changeClass}`}>
+                                            {quote.change >= 0 ? "+" : ""}{quote.change.toFixed(2)} ({quote.changePercent.toFixed(2)}%)
                                         </p>
                                     </div>
-                                    <div className="text-right">
-                                        <p className="text-sm font-semibold">{formatCurrency(pos.totalValue)}</p>
-                                        <Badge variant={pos.pnl >= 0 ? "success" : "destructive"}>
-                                            {pos.pnl >= 0 ? "+" : ""}
-                                            {pos.pnlPercent.toFixed(2)}%
-                                        </Badge>
-                                    </div>
-                                </div>
-                            </Card>
-                        ))}
-                    </div>
-                )}
+                                </Card>
+                            </div>
+                        );
+                    })}
             </div>
-
-            {/* Trade History */}
-            {trades.length > 0 && (
-                <div>
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                        Recent Trades
-                    </h3>
-                    <div className="space-y-1.5">
-                        {trades.slice(0, 10).map((trade) => (
-                            <Card key={trade.id} className="py-2.5 px-3">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                        <Badge variant={trade.type === "buy" ? "success" : "destructive"}>
-                                            {trade.type}
-                                        </Badge>
-                                        <span className="text-xs font-semibold">{trade.symbol}</span>
-                                    </div>
-                                    <span className="text-xs text-muted-foreground">
-                                        {trade.quantity} @ {formatCurrency(trade.price)}
-                                    </span>
-                                </div>
-                            </Card>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            {/* FAB */}
-            <button
-                onClick={() => setFormOpen(true)}
-                className="fixed bottom-20 right-4 h-14 w-14 gradient-primary rounded-2xl shadow-xl shadow-primary/30 flex items-center justify-center text-white hover:shadow-primary/50 active:scale-90 transition-all duration-200 z-40"
-            >
-                <Plus className="h-6 w-6" />
-            </button>
-
-            <TradeForm open={formOpen} onClose={() => setFormOpen(false)} onSubmit={executeTrade} />
         </div>
     );
 }

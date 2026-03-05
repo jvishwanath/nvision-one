@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { TopBar } from "@/components/top-bar";
 import {
   CheckSquare,
@@ -10,12 +11,15 @@ import {
   Plane,
   Sparkles,
   ChevronRight,
+  AlarmClock,
 } from "lucide-react";
 import Link from "next/link";
 import { taskRepository } from "@/features/tasks/repository";
 import { noteRepository } from "@/features/notes/repository";
 import { tradeRepository } from "@/features/finance/repository";
 import { travelRepository } from "@/features/travel/repository";
+import type { Task } from "@/features/tasks/types";
+import { formatDate } from "@/lib/utils";
 
 interface DashboardStats {
   totalTasks: number;
@@ -34,6 +38,7 @@ export default function DashboardPage() {
     totalTrips: 0,
   });
   const [mounted, setMounted] = useState(false);
+  const [reminders, setReminders] = useState<Task[]>([]);
 
   useEffect(() => {
     setMounted(true);
@@ -47,7 +52,12 @@ export default function DashboardPage() {
       // Dexie where("completed").equals(1) doesn't work for booleans, use filter
       const allTasks = await taskRepository.getAll();
       const completedTasks = allTasks.filter((t) => t.completed).length;
+      const upcoming = allTasks
+        .filter((task) => !task.completed && task.dueDate)
+        .sort((a, b) => new Date(a.dueDate ?? 0).getTime() - new Date(b.dueDate ?? 0).getTime())
+        .slice(0, 3);
       setStats({ totalTasks, completedTasks, totalNotes, totalTrades, totalTrips });
+      setReminders(upcoming);
     }
     loadStats();
   }, []);
@@ -146,27 +156,61 @@ export default function DashboardPage() {
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
             Quick Actions
           </h3>
-          <div className="grid grid-cols-1 gap-2">
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
             {[
-              { label: "Create a task", href: "/tasks", icon: CheckSquare },
-              { label: "Write a note", href: "/notes", icon: StickyNote },
-              { label: "Execute a trade", href: "/finance", icon: TrendingUp },
-              { label: "Plan a trip", href: "/travel", icon: Plane },
+              { label: "Task", href: "/tasks?create=true", icon: CheckSquare },
+              { label: "Note", href: "/notes?create=true", icon: StickyNote },
+              { label: "Trade", href: "/finance?create=true", icon: TrendingUp },
+              { label: "Trip", href: "/travel?create=true", icon: Plane },
             ].map((action) => {
               const Icon = action.icon;
               return (
-                <Link key={action.label} href={action.href}>
-                  <Card className="flex items-center gap-3 py-3 px-4 hover:shadow-md transition-all">
-                    <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Icon className="h-4 w-4 text-primary" />
-                    </div>
-                    <span className="text-sm font-medium">{action.label}</span>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground/40 ml-auto" />
-                  </Card>
+                <Link
+                  key={action.label}
+                  href={action.href}
+                  className="shrink-0 flex items-center gap-1.5 rounded-2xl border border-border/60 px-3 py-2 text-xs font-semibold text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors"
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {action.label}
                 </Link>
               );
             })}
           </div>
+        </div>
+
+        {/* Task Reminders */}
+        <div>
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+            Reminders
+          </h3>
+          <Card className="border-dashed">
+            {reminders.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No upcoming tasks
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {reminders.map((task) => (
+                  <div key={task.id} className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <AlarmClock className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium line-clamp-1">{task.title}</p>
+                      {task.dueDate && (
+                        <p className="text-xs text-muted-foreground">
+                          Due {formatDate(task.dueDate)}
+                        </p>
+                      )}
+                    </div>
+                    <Badge className="text-[10px]" variant="outline">
+                      {task.priority}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
         </div>
       </div>
     </>

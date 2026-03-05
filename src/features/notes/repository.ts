@@ -1,8 +1,9 @@
 import { db } from "@/lib/db";
 import type { Note, CreateNoteInput } from "./types";
 import { generateId } from "@/lib/utils";
+import { noteHttpRepository } from "./repository.http";
 
-export const noteRepository = {
+const noteLocalRepository = {
     async getAll(): Promise<Note[]> {
         return db.notes.orderBy("createdAt").reverse().toArray();
     },
@@ -46,3 +47,7 @@ export const noteRepository = {
         return db.notes.count();
     },
 };
+
+const useServerPersistence = process.env.NEXT_PUBLIC_PERSISTENCE !== "local";
+
+export const noteRepository = useServerPersistence ? noteHttpRepository : noteLocalRepository;

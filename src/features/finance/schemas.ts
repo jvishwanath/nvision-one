@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 export const TradeType = z.enum(["buy", "sell"]);
 export type TradeType = z.infer<typeof TradeType>;
@@ -26,3 +26,11 @@ export interface PortfolioPosition {
     pnl: number;
     pnlPercent: number;
 }
+
+export const WatchlistEntrySchema = z.object({
+    id: z.string(),
+    symbol: z.string().min(1, "Symbol is required"),
+    createdAt: z.string(),
+});
+
+export type WatchlistEntry = z.infer<typeof WatchlistEntrySchema>;

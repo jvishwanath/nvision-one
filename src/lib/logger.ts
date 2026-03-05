@@ -7,8 +7,16 @@ const LOG_LEVELS: Record<LogLevel, number> = {
     error: 3,
 };
 
-const CURRENT_LEVEL: LogLevel =
-    (process.env.NEXT_PUBLIC_LOG_LEVEL as LogLevel) ?? "info";
+function resolveLogLevel(): LogLevel {
+    const raw = process.env.NEXT_PUBLIC_LOG_LEVEL;
+    if (!raw) return "info";
+    if (raw === "debug" || raw === "info" || raw === "warn" || raw === "error") {
+        return raw;
+    }
+    return "info";
+}
+
+const CURRENT_LEVEL: LogLevel = resolveLogLevel();
 
 function shouldLog(level: LogLevel): boolean {
     return LOG_LEVELS[level] >= LOG_LEVELS[CURRENT_LEVEL];

@@ -2,19 +2,38 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { Plus, Search } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useNoteStore } from "../store";
 import { NoteCard } from "./note-card";
 import { NoteEditor } from "./note-editor";
-import { Badge } from "@/components/ui/badge";
+import type { CreateNoteInput, Note } from "../types";
 
 export function NoteList() {
-    const { notes, loading, searchQuery, selectedTag, loadNotes, addNote, deleteNote, setSearchQuery, setSelectedTag } =
+    const searchParams = useSearchParams();
+    const { notes, loading, searchQuery, selectedTag, loadNotes, addNote, updateNote, deleteNote, setSearchQuery, setSelectedTag } =
         useNoteStore();
     const [editorOpen, setEditorOpen] = useState(false);
+    const [editingNote, setEditingNote] = useState<Note | null>(null);
+
+    const handleSubmit = async (data: CreateNoteInput) => {
+        if (editingNote) {
+            await updateNote(editingNote.id, data);
+            setEditingNote(null);
+            return;
+        }
+        await addNote(data);
+    };
 
     useEffect(() => {
         loadNotes();
     }, [loadNotes]);
+
+    useEffect(() => {
+        if (searchParams.get("create") === "true") {
+            setEditingNote(null);
+            setEditorOpen(true);
+        }
+    }, [searchParams]);
 
     const allTags = useMemo(() => {
         const tagSet = new Set<string>();
@@ -91,20 +110,39 @@ export function NoteList() {
             ) : (
                 <div className="space-y-2">
                     {filteredNotes.map((note) => (
-                        <NoteCard key={note.id} note={note} onDelete={deleteNote} />
+                        <NoteCard
+                            key={note.id}
+                            note={note}
+                            onDelete={deleteNote}
+                            onEdit={(selectedNote) => {
+                                setEditingNote(selectedNote);
+                                setEditorOpen(true);
+                            }}
+                        />
                     ))}
                 </div>
             )}
 
             {/* FAB */}
             <button
-                onClick={() => setEditorOpen(true)}
+                onClick={() => {
+                    setEditingNote(null);
+                    setEditorOpen(true);
+                }}
                 className="fixed bottom-20 right-4 h-14 w-14 gradient-primary rounded-2xl shadow-xl shadow-primary/30 flex items-center justify-center text-white hover:shadow-primary/50 active:scale-90 transition-all duration-200 z-40"
             >
                 <Plus className="h-6 w-6" />
             </button>
 
-            <NoteEditor open={editorOpen} onClose={() => setEditorOpen(false)} onSubmit={addNote} />
+            <NoteEditor
+                open={editorOpen}
+                onClose={() => {
+                    setEditorOpen(false);
+                    setEditingNote(null);
+                }}
+                onSubmit={handleSubmit}
+                initialData={editingNote ?? undefined}
+            />
         </div>
     );
 }

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LifeOS Panel</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0b0d11;
+        --panel: #12151d;
+        --muted: #8b93a7;
+        --text: #f4f7ff;
+        --accent: #6ee7b7;
+        --danger: #f87171;
+        --border: #242b3a;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        background: var(--bg);
+        color: var(--text);
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      .header {
+        padding: 10px;
+        border-bottom: 1px solid var(--border);
+        background: var(--panel);
+      }
+      .row { display: flex; gap: 8px; align-items: center; }
+      .title { font-size: 13px; font-weight: 700; margin: 0 0 8px; }
+      input {
+        flex: 1;
+        min-width: 0;
+        background: #0f1219;
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 7px 9px;
+        font-size: 12px;
+      }
+      button {
+        border: 1px solid var(--border);
+        background: #151a24;
+        color: var(--text);
+        border-radius: 8px;
+        padding: 7px 10px;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      button.primary { border-color: #1f7a63; background: #123c33; color: var(--accent); }
+      button.link { padding: 6px 8px; font-size: 11px; }
+      .sub {
+        margin-top: 6px;
+        font-size: 11px;
+        color: var(--muted);
+        display: flex;
+        justify-content: space-between;
+      }
+      .sub span.error { color: var(--danger); }
+      .quick {
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        gap: 6px;
+        overflow-x: auto;
+        background: var(--panel);
+      }
+      iframe {
+        width: 100%;
+        border: 0;
+        flex: 1;
+        background: #0f1219;
+      }
+      .empty {
+        flex: 1;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 20px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .empty.show { display: flex; }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <p class="title">LifeOS Side Panel</p>
+      <div class="row">
+        <input id="baseUrl" type="url" placeholder="http://localhost:3000" />
+        <button id="saveBtn" class="primary">Save</button>
+      </div>
+      <div class="sub">
+        <span id="statusText">Set your LifeOS URL.</span>
+        <button id="reloadBtn" class="link">Reload</button>
+      </div>
+    </div>
+
+    <div class="quick">
+      <button data-path="/">Home</button>
+      <button data-path="/tasks">Tasks</button>
+      <button data-path="/notes">Notes</button>
+      <button data-path="/finance">Finance</button>
+      <button data-path="/travel">Travel</button>
+      <button data-path="/login">Login</button>
+    </div>
+
+    <iframe id="lifeosFrame" title="LifeOS"></iframe>
+    <div id="emptyState" class="empty">
+      <div>
+        Could not load URL in side panel. Check that your URL is reachable and allows embedding.
+      </div>
+    </div>
+
+    <script src="sidepanel.js"></script>
+  </body>
+</html>

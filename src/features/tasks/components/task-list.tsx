@@ -2,19 +2,29 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { Plus } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useTaskStore } from "../store";
 import { TaskCard } from "./task-card";
 import { TaskForm } from "./task-form";
-import { Button } from "@/components/ui/button";
+import type { Task, CreateTaskInput } from "../types";
 
 export function TaskList() {
-    const { tasks, loading, filter, priorityFilter, loadTasks, addTask, toggleTask, deleteTask, setFilter } =
+    const searchParams = useSearchParams();
+    const { tasks, loading, filter, priorityFilter, loadTasks, addTask, updateTask, toggleTask, deleteTask, setFilter } =
         useTaskStore();
     const [formOpen, setFormOpen] = useState(false);
+    const [editingTask, setEditingTask] = useState<Task | null>(null);
 
     useEffect(() => {
         loadTasks();
     }, [loadTasks]);
+
+    useEffect(() => {
+        if (searchParams.get("create") === "true") {
+            setEditingTask(null);
+            setFormOpen(true);
+        }
+    }, [searchParams]);
 
     const filteredTasks = useMemo(() => {
         let result = tasks;
@@ -25,6 +35,15 @@ export function TaskList() {
     }, [tasks, filter, priorityFilter]);
 
     const filters = ["all", "active", "completed"] as const;
+
+    const handleSubmit = async (data: CreateTaskInput) => {
+        if (editingTask) {
+            await updateTask(editingTask.id, data);
+            setEditingTask(null);
+            return;
+        }
+        await addTask(data);
+    };
 
     return (
         <div className="space-y-4">
@@ -62,6 +81,10 @@ export function TaskList() {
                             task={task}
                             onToggle={toggleTask}
                             onDelete={deleteTask}
+                            onEdit={(selectedTask) => {
+                                setEditingTask(selectedTask);
+                                setFormOpen(true);
+                            }}
                         />
                     ))}
                 </div>
@@ -69,13 +92,24 @@ export function TaskList() {
 
             {/* FAB */}
             <button
-                onClick={() => setFormOpen(true)}
+                onClick={() => {
+                    setEditingTask(null);
+                    setFormOpen(true);
+                }}
                 className="fixed bottom-20 right-4 h-14 w-14 gradient-primary rounded-2xl shadow-xl shadow-primary/30 flex items-center justify-center text-white hover:shadow-primary/50 active:scale-90 transition-all duration-200 z-40"
             >
                 <Plus className="h-6 w-6" />
             </button>
 
-            <TaskForm open={formOpen} onClose={() => setFormOpen(false)} onSubmit={addTask} />
+            <TaskForm
+                open={formOpen}
+                onClose={() => {
+                    setFormOpen(false);
+                    setEditingTask(null);
+                }}
+                onSubmit={handleSubmit}
+                initialData={editingTask ?? undefined}
+            />
         </div>
     );
 }

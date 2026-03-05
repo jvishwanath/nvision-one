@@ -1,8 +1,9 @@
 import { db } from "@/lib/db";
 import type { Trip, CreateTripInput, ItineraryItem, CreateItineraryItemInput } from "./types";
 import { generateId } from "@/lib/utils";
+import { travelHttpRepository } from "./repository.http";
 
-export const travelRepository = {
+const travelLocalRepository = {
     /* ── Trips ───────── */
     async getAllTrips(): Promise<Trip[]> {
         return db.trips.orderBy("startDate").reverse().toArray();
@@ -45,7 +46,11 @@ export const travelRepository = {
     },
 
     async addItineraryItem(input: CreateItineraryItemInput): Promise<ItineraryItem> {
-        const item: ItineraryItem = { ...input, id: generateId() };
+        const item: ItineraryItem = {
+            ...input,
+            tag: input.tag ?? "experience",
+            id: generateId(),
+        };
         await db.itineraryItems.add(item);
         return item;
     },
@@ -54,3 +59,7 @@ export const travelRepository = {
         await db.itineraryItems.delete(id);
     },
 };
+
+const useServerPersistence = process.env.NEXT_PUBLIC_PERSISTENCE !== "local";
+
+export const travelRepository = useServerPersistence ? travelHttpRepository : travelLocalRepository;
