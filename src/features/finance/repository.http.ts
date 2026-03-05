@@ -23,6 +23,7 @@ export const watchlistHttpRepository = {
       body: JSON.stringify({ symbol: symbolInput }),
     }),
   remove: (id: string) => apiClient<void>(`/api/finance/watchlist/${id}`, { method: "DELETE" }),
+  count: async () => (await watchlistHttpRepository.getAll()).length,
   async ensureDefaults(): Promise<WatchlistEntry[]> {
     const existing = await this.getAll();
     if (existing.length > 0) return existing;

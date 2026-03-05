@@ -61,6 +61,10 @@ const watchlistLocalRepository = {
         await db.watchlist.delete(id);
     },
 
+    async count(): Promise<number> {
+        return db.watchlist.count();
+    },
+
     async ensureDefaults(): Promise<WatchlistEntry[]> {
         const count = await db.watchlist.count();
         if (count > 0) {

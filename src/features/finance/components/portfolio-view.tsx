@@ -3,18 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useSearchParams } from "next/navigation";
-import {
-    RefreshCw,
-    Plus,
-    X,
-    ArrowUpRight,
-    ArrowDownRight,
-} from "lucide-react";
+import { RefreshCw, Plus, X, Search, ArrowUpDown, DollarSign, Percent } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { useFinanceStore } from "../store";
+
+type SortMode = "symbol" | "change" | "changePercent";
+type SortDirection = "asc" | "desc";
 
 function formatPrice(value: number, currency = "USD") {
     return new Intl.NumberFormat("en-US", {
@@ -30,6 +26,9 @@ export function PortfolioView() {
     const [symbolInput, setSymbolInput] = useState("");
     const [adding, setAdding] = useState(false);
     const [swipedId, setSwipedId] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [sortMode, setSortMode] = useState<SortMode>("symbol");
+    const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
     const pointerStartXRef = useRef<number | null>(null);
 
     useEffect(() => {
@@ -91,6 +90,38 @@ export function PortfolioView() {
     };
 
     const placeholderRows = useMemo(() => Array.from({ length: 4 }), []);
+    const visibleQuotes = useMemo(() => {
+        const filtered = quotes.filter((quote) => {
+            const q = searchQuery.trim().toLowerCase();
+            if (!q) return true;
+            return quote.symbol.toLowerCase().includes(q) || quote.name.toLowerCase().includes(q);
+        });
+
+        const sorted = [...filtered];
+        if (sortMode === "change") {
+            sorted.sort((a, b) => a.change - b.change);
+        } else if (sortMode === "changePercent") {
+            sorted.sort((a, b) => a.changePercent - b.changePercent);
+        } else {
+            sorted.sort((a, b) => a.symbol.localeCompare(b.symbol));
+        }
+
+        if (sortDirection === "desc") {
+            sorted.reverse();
+        }
+
+        return sorted;
+    }, [quotes, searchQuery, sortMode, sortDirection]);
+
+    const handleSortClick = (mode: SortMode) => {
+        if (sortMode === mode) {
+            setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+            return;
+        }
+
+        setSortMode(mode);
+        setSortDirection(mode === "symbol" ? "asc" : "desc");
+    };
 
     const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
         if (!event.isPrimary) return;
@@ -117,15 +148,46 @@ export function PortfolioView() {
                     <h2 className="text-lg font-bold">Watchlist</h2>
                     <p className="text-xs text-muted-foreground">Track your favorite tickers in real time</p>
                 </div>
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Refresh quotes"
-                    onClick={refresh}
-                    disabled={loading}
-                >
-                    <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                </Button>
+                <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 rounded-lg border border-border/60 bg-background/70 p-1">
+                        <button
+                            type="button"
+                            onClick={() => handleSortClick("symbol")}
+                            aria-label="Sort by ticker"
+                            title="Sort by ticker"
+                            className={`h-6 w-6 rounded-md flex items-center justify-center transition-colors ${sortMode === "symbol" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                        >
+                            <ArrowUpDown className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleSortClick("change")}
+                            aria-label="Sort by dollar change"
+                            title="Sort by dollar change"
+                            className={`h-6 w-6 rounded-md flex items-center justify-center transition-colors ${sortMode === "change" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                        >
+                            <DollarSign className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => handleSortClick("changePercent")}
+                            aria-label="Sort by percent change"
+                            title="Sort by percent change"
+                            className={`h-6 w-6 rounded-md flex items-center justify-center transition-colors ${sortMode === "changePercent" ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                        >
+                            <Percent className="h-3.5 w-3.5" />
+                        </button>
+                    </div>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Refresh quotes"
+                        onClick={refresh}
+                        disabled={loading}
+                    >
+                        <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                    </Button>
+                </div>
             </div>
 
             <Card className="p-3 space-y-3">
@@ -166,16 +228,16 @@ export function PortfolioView() {
                         </Card>
                     ))}
 
-                {!loading && quotes.length === 0 && (
+                {!loading && visibleQuotes.length === 0 && (
                     <Card className="p-4 text-center">
                         <p className="text-sm text-muted-foreground">
-                            Add a symbol to get started.
+                            {searchQuery ? "No matching symbols." : "Add a symbol to get started."}
                         </p>
                     </Card>
                 )}
 
                 {!loading &&
-                    quotes.map((quote) => {
+                    visibleQuotes.map((quote) => {
                         const isUp = quote.change >= 0;
                         const changeClass = isUp ? "text-emerald-500" : "text-rose-500";
 
@@ -226,6 +288,19 @@ export function PortfolioView() {
                             </div>
                         );
                     })}
+            </div>
+
+            <div className="fixed bottom-24 right-4 z-40 w-44">
+                <div className="flex items-center gap-1 rounded-full border border-border/60 bg-background/95 px-2 py-1 shadow-lg backdrop-blur">
+                    <Search className="h-3.5 w-3.5 text-muted-foreground" />
+                    <input
+                        value={searchQuery}
+                        onChange={(event) => setSearchQuery(event.target.value)}
+                        placeholder="Search"
+                        className="w-full bg-transparent text-xs outline-none placeholder:text-muted-foreground/70"
+                        aria-label="Search watchlist"
+                    />
+                </div>
             </div>
         </div>
     );

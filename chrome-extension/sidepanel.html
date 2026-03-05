@@ -30,6 +30,22 @@
         border-bottom: 1px solid var(--border);
         background: var(--panel);
       }
+      details.settings {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: #0f1219;
+      }
+      details.settings > summary {
+        list-style: none;
+        cursor: pointer;
+        padding: 8px 10px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      details.settings > summary::-webkit-details-marker { display: none; }
+      .settings-body {
+        padding: 0 10px 10px;
+      }
       .row { display: flex; gap: 8px; align-items: center; }
       .title { font-size: 13px; font-weight: 700; margin: 0 0 8px; }
       input {
@@ -91,14 +107,20 @@
   <body>
     <div class="header">
       <p class="title">LifeOS Side Panel</p>
-      <div class="row">
-        <input id="baseUrl" type="url" placeholder="http://localhost:3000" />
-        <button id="saveBtn" class="primary">Save</button>
-      </div>
-      <div class="sub">
+      <div class="sub" style="margin: 0 0 8px;">
         <span id="statusText">Set your LifeOS URL.</span>
         <button id="reloadBtn" class="link">Reload</button>
       </div>
+
+      <details class="settings">
+        <summary>Settings</summary>
+        <div class="settings-body">
+          <div class="row">
+            <input id="baseUrl" type="url" placeholder="http://localhost:3000" />
+            <button id="saveBtn" class="primary">Save</button>
+          </div>
+        </div>
+      </details>
     </div>
 
     <div class="quick">

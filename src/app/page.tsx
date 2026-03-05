@@ -16,7 +16,7 @@ import {
 import Link from "next/link";
 import { taskRepository } from "@/features/tasks/repository";
 import { noteRepository } from "@/features/notes/repository";
-import { tradeRepository } from "@/features/finance/repository";
+import { watchlistRepository } from "@/features/finance/repository";
 import { travelRepository } from "@/features/travel/repository";
 import type { Task } from "@/features/tasks/types";
 import { formatDate } from "@/lib/utils";
@@ -25,7 +25,7 @@ interface DashboardStats {
   totalTasks: number;
   completedTasks: number;
   totalNotes: number;
-  totalTrades: number;
+  totalWatching: number;
   totalTrips: number;
 }
 
@@ -34,7 +34,7 @@ export default function DashboardPage() {
     totalTasks: 0,
     completedTasks: 0,
     totalNotes: 0,
-    totalTrades: 0,
+    totalWatching: 0,
     totalTrips: 0,
   });
   const [mounted, setMounted] = useState(false);
@@ -43,10 +43,10 @@ export default function DashboardPage() {
   useEffect(() => {
     setMounted(true);
     async function loadStats() {
-      const [totalTasks, totalNotes, totalTrades, totalTrips] = await Promise.all([
+      const [totalTasks, totalNotes, totalWatching, totalTrips] = await Promise.all([
         taskRepository.count(),
         noteRepository.count(),
-        tradeRepository.count(),
+        watchlistRepository.count(),
         travelRepository.countTrips(),
       ]);
       // Dexie where("completed").equals(1) doesn't work for booleans, use filter
@@ -56,7 +56,7 @@ export default function DashboardPage() {
         .filter((task) => !task.completed && task.dueDate)
         .sort((a, b) => new Date(a.dueDate ?? 0).getTime() - new Date(b.dueDate ?? 0).getTime())
         .slice(0, 3);
-      setStats({ totalTasks, completedTasks, totalNotes, totalTrades, totalTrips });
+      setStats({ totalTasks, completedTasks, totalNotes, totalWatching, totalTrips });
       setReminders(upcoming);
     }
     loadStats();
@@ -87,8 +87,8 @@ export default function DashboardPage() {
       title: "Finance",
       href: "/finance",
       icon: TrendingUp,
-      value: stats.totalTrades.toString(),
-      subtitle: "trades executed",
+      value: stats.totalWatching.toString(),
+      subtitle: "stocks watching",
       gradient: "from-emerald-500 to-green-600",
       shadowColor: "shadow-emerald-500/20",
     },
