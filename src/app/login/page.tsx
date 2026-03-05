@@ -22,7 +22,10 @@ export default function LoginPage() {
   return (
     <div className="min-h-dvh flex items-center justify-center p-4">
       <form onSubmit={onSubmit} className="w-full max-w-sm space-y-4 rounded-2xl border p-5 bg-card">
-        <h1 className="text-xl font-semibold">Login</h1>
+        <div className="space-y-1">
+          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">NVision One</p>
+          <h1 className="text-xl font-semibold">Login</h1>
+        </div>
         <input
           className="w-full rounded-lg border px-3 py-2 bg-background"
           type="email"

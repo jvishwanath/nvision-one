@@ -10,14 +10,17 @@ export interface StockQuote {
 }
 
 type StooqRow = {
-    Symbol?: string;
-    Name?: string;
+    Date?: string;
+    Open?: string;
+    High?: string;
+    Low?: string;
     Close?: string;
+    Volume?: string;
 };
 
 async function fetchStooqQuote(symbol: string): Promise<StockQuote> {
     const ticker = `${symbol.toLowerCase()}.us`;
-    const url = `${STOOQ_ENDPOINT}?s=${encodeURIComponent(ticker)}&f=snc&h&e=csv`;
+    const url = `${STOOQ_DAILY_ENDPOINT}?s=${encodeURIComponent(ticker)}&i=d`;
     const response = await fetch(url, {
         headers: { "Accept": "text/csv" },
         next: { revalidate: 60 },
@@ -28,29 +31,48 @@ async function fetchStooqQuote(symbol: string): Promise<StockQuote> {
     }
 
     const text = await response.text();
-    const lines = text.trim().split("\n");
+    const lines = text
+        .trim()
+        .split("\n")
+        .filter((line) => line.trim().length > 0);
     if (lines.length < 2) {
         throw new Error(`No Stooq quote returned for ${symbol}`);
     }
 
-    const values = lines[1].split(",").map((value) => value.replace(/^"|"$/g, "").trim());
-    const row: StooqRow = {
-        Symbol: values[0],
-        Name: values[1],
-        Close: values[2],
+    const parseRow = (line: string): StooqRow => {
+        const values = line.split(",").map((value) => value.replace(/^"|"$/g, "").trim());
+        return {
+            Date: values[0],
+            Open: values[1],
+            High: values[2],
+            Low: values[3],
+            Close: values[4],
+            Volume: values[5],
+        };
     };
 
-    const close = Number(row.Close ?? "NaN");
-    if (!Number.isFinite(close)) {
+    const rows = lines.slice(1).map(parseRow);
+    const latestRow = rows[rows.length - 1];
+    const previousRow = rows.length > 1 ? rows[rows.length - 2] : undefined;
+
+    const close = Number(latestRow?.Close ?? "NaN");
+    const previousClose = Number(previousRow?.Close ?? "NaN");
+
+    if (!Number.isFinite(close) || close <= 0) {
         throw new Error(`Invalid Stooq quote for ${symbol}`);
     }
 
+    const change = Number.isFinite(previousClose) && previousClose > 0 ? close - previousClose : 0;
+    const changePercent = Number.isFinite(previousClose) && previousClose > 0
+        ? (change / previousClose) * 100
+        : 0;
+
     return {
         symbol,
-        name: row.Name && row.Name !== "N/D" ? row.Name : symbol,
+        name: symbol,
         price: close,
-        change: 0,
-        changePercent: 0,
+        change,
+        changePercent,
         currency: "USD",
         exchange: "STOOQ",
     };
@@ -69,7 +91,7 @@ export interface IStockPriceService {
 
 const QUOTE_ENDPOINT = "https://query1.finance.yahoo.com/v7/finance/quote";
 const SEARCH_ENDPOINT = "https://query2.finance.yahoo.com/v1/finance/search";
-const STOOQ_ENDPOINT = "https://stooq.com/q/l/";
+const STOOQ_DAILY_ENDPOINT = "https://stooq.com/q/d/l/";
 
 function assertString(value: string, field: string): string {
     if (typeof value !== "string") {

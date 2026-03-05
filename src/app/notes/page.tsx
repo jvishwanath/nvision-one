@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { TopBar } from "@/components/top-bar";
 import { NoteList } from "@/features/notes/components/note-list";
 
@@ -6,7 +7,9 @@ export default function NotesPage() {
         <>
             <TopBar title="Notes" />
             <div className="p-4">
-                <NoteList />
+                <Suspense fallback={null}>
+                    <NoteList />
+                </Suspense>
             </div>
         </>
     );

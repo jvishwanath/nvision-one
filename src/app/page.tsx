@@ -21,6 +21,24 @@ import { travelRepository } from "@/features/travel/repository";
 import type { Task } from "@/features/tasks/types";
 import { formatDate } from "@/lib/utils";
 
+type WeatherData = {
+  temperature: number;
+  code: number;
+};
+
+function weatherCodeToLabel(code: number): string {
+  if (code === 0) return "Clear";
+  if ([1, 2, 3].includes(code)) return "Cloudy";
+  if ([45, 48].includes(code)) return "Fog";
+  if ([51, 53, 55, 56, 57].includes(code)) return "Drizzle";
+  if ([61, 63, 65, 66, 67].includes(code)) return "Rain";
+  if ([71, 73, 75, 77].includes(code)) return "Snow";
+  if ([80, 81, 82].includes(code)) return "Showers";
+  if ([85, 86].includes(code)) return "Snow showers";
+  if ([95, 96, 99].includes(code)) return "Thunderstorm";
+  return "Weather";
+}
+
 interface DashboardStats {
   totalTasks: number;
   completedTasks: number;
@@ -39,6 +57,8 @@ export default function DashboardPage() {
   });
   const [mounted, setMounted] = useState(false);
   const [reminders, setReminders] = useState<Task[]>([]);
+  const [locationLabel, setLocationLabel] = useState<string | null>(null);
+  const [weatherLabel, setWeatherLabel] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -52,14 +72,74 @@ export default function DashboardPage() {
       // Dexie where("completed").equals(1) doesn't work for booleans, use filter
       const allTasks = await taskRepository.getAll();
       const completedTasks = allTasks.filter((t) => t.completed).length;
+      const now = Date.now();
+      const tenDaysFromNow = now + 10 * 24 * 60 * 60 * 1000;
       const upcoming = allTasks
-        .filter((task) => !task.completed && task.dueDate)
+        .filter((task) => {
+          if (task.completed || !task.dueDate) return false;
+          const dueAt = new Date(task.dueDate).getTime();
+          return Number.isFinite(dueAt) && dueAt >= now && dueAt <= tenDaysFromNow;
+        })
         .sort((a, b) => new Date(a.dueDate ?? 0).getTime() - new Date(b.dueDate ?? 0).getTime())
         .slice(0, 3);
       setStats({ totalTasks, completedTasks, totalNotes, totalWatching, totalTrips });
       setReminders(upcoming);
     }
     loadStats();
+  }, []);
+
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+
+        try {
+          const [weatherRes, geoRes] = await Promise.all([
+            fetch(
+              `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code`
+            ),
+            fetch(
+              `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${latitude}&longitude=${longitude}&count=1&language=en&format=json`
+            ),
+          ]);
+
+          if (weatherRes.ok) {
+            const weatherJson = (await weatherRes.json()) as {
+              current?: { temperature_2m?: number; weather_code?: number };
+            };
+            const current = weatherJson.current;
+            if (typeof current?.temperature_2m === "number" && typeof current?.weather_code === "number") {
+              const data: WeatherData = {
+                temperature: current.temperature_2m,
+                code: current.weather_code,
+              };
+              setWeatherLabel(`${Math.round(data.temperature)}°C ${weatherCodeToLabel(data.code)}`);
+            }
+          }
+
+          if (geoRes.ok) {
+            const geoJson = (await geoRes.json()) as {
+              results?: Array<{ city?: string; town?: string; village?: string; country?: string }>;
+            };
+            const place = geoJson.results?.[0];
+            if (place) {
+              const locality = place.city ?? place.town ?? place.village;
+              setLocationLabel(locality ? `${locality}, ${place.country ?? ""}`.replace(/,\s*$/, "") : (place.country ?? null));
+            }
+          }
+        } catch {
+          // Silent fallback: greeting stays visible without weather/location.
+        }
+      },
+      () => {
+        // Permission denied or unavailable.
+      },
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
+    );
   }, []);
 
   if (!mounted) return null;
@@ -105,13 +185,20 @@ export default function DashboardPage() {
 
   return (
     <>
-      <TopBar title="LifeOS" />
+      <TopBar title="NVision One" />
       <div className="p-4 space-y-6">
         {/* Hero */}
         <div className="animate-fade-in">
           <div className="flex items-center gap-2 mb-1">
             <Sparkles className="h-5 w-5 text-primary" />
             <h2 className="text-xl font-bold">Good {getGreeting()}</h2>
+            {locationLabel || weatherLabel ? (
+              <p className="text-xs text-muted-foreground truncate">
+                {locationLabel ? `${locationLabel}` : ""}
+                {locationLabel && weatherLabel ? " • " : ""}
+                {weatherLabel ? weatherLabel : ""}
+              </p>
+            ) : null}
           </div>
           <p className="text-sm text-muted-foreground">
             Here&apos;s your life at a glance

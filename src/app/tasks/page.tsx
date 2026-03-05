@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { TopBar } from "@/components/top-bar";
 import { TaskList } from "@/features/tasks/components/task-list";
 
@@ -6,7 +7,9 @@ export default function TasksPage() {
         <>
             <TopBar title="Tasks" />
             <div className="p-4">
-                <TaskList />
+                <Suspense fallback={null}>
+                    <TaskList />
+                </Suspense>
             </div>
         </>
     );

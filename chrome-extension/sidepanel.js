@@ -4,6 +4,8 @@ const DEFAULT_URL = "http://localhost:3000";
 const baseUrlInput = document.getElementById("baseUrl");
 const saveBtn = document.getElementById("saveBtn");
 const reloadBtn = document.getElementById("reloadBtn");
+const settingsToggleBtn = document.getElementById("settingsToggleBtn");
+const settingsPanel = document.getElementById("settingsPanel");
 const statusText = document.getElementById("statusText");
 const frame = document.getElementById("lifeosFrame");
 const emptyState = document.getElementById("emptyState");
@@ -73,6 +75,10 @@ saveBtn.addEventListener("click", () => {
 reloadBtn.addEventListener("click", () => {
   setStatus(`Reloading ${currentBaseUrl}`);
   showFrame(buildUrl("/"));
+});
+
+settingsToggleBtn?.addEventListener("click", () => {
+  settingsPanel?.classList.toggle("hidden");
 });
 
 quickButtons.forEach((button) => {
