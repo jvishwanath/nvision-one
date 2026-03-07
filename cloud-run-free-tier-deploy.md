@@ -2,6 +2,41 @@
 
 This guide is tuned for **Cloud Run free tier** usage and your current SQLite-first setup.
 
+## SQLite-only status (current code)
+
+The current server code is SQLite-only.
+
+- `DB_DRIVER=sqlite` is required for runtime success.
+- Postgres mode is not implemented yet and will fail fast.
+
+---
+
+## Quick path: SQLite-only deploy from Docker Hub
+
+If you already have a pushed image (for example `docker.io/<username>/nvisionone:latest`), these are the minimum settings:
+
+1. Cloud Run service image: `docker.io/<username>/nvisionone:latest`
+2. Environment variables:
+   - `DB_DRIVER=sqlite`
+   - `DATABASE_URL=/app/data/lifeos.db`
+   - `NEXT_PUBLIC_PERSISTENCE=server`
+3. Secret env var:
+   - `AUTH_SECRET` from Secret Manager
+4. Storage mount:
+   - Cloud Storage bucket mounted at `/app/data`
+5. Free-tier limits:
+   - `min-instances=0`
+   - `max-instances=1`
+   - `cpu=1`
+   - `memory=512Mi`
+
+The container entrypoint handles idempotent startup for SQLite:
+
+- ensures DB directory/file exists
+- runs migrations if migration journal exists
+
+---
+
 ## 0) Free-tier strategy (important)
 
 To stay near free tier:
@@ -235,3 +270,38 @@ gcloud components update
 
 For hobby/single-user scale, SQLite on Cloud Run with one instance is practical.
 For larger multi-user production, consider migrating to a managed SQL backend.
+
+---
+
+## 11) Postgres (Supabase) implementation roadmap
+
+This section is a code implementation plan, not a runtime toggle.
+
+### 11.1 Why this is needed
+
+Current code uses:
+
+- SQLite driver/runtime (`better-sqlite3`)
+- SQLite Drizzle dialect/schema (`drizzle-orm/sqlite-core`)
+- SQLite migration runner
+
+So setting `DB_DRIVER=postgres` today will fail.
+
+### 11.2 Implementation tasks
+
+1. Add Postgres driver support in server DB bootstrap (`pg` + Drizzle postgres runtime).
+2. Add Postgres schema definitions (or migrate shared schema strategy) compatible with `pg-core`.
+3. Add Postgres migration config + output folder and migration runner.
+4. Extend `docker-entrypoint.sh`:
+   - sqlite mode: keep current init + migrate behavior
+   - postgres mode: run Postgres migrate only (no local file init)
+5. Keep migrations idempotent for both drivers.
+6. Validate all repositories/routes/auth flows against Postgres.
+
+### 11.3 Cloud Run config after Postgres implementation
+
+- `DB_DRIVER=postgres`
+- `DATABASE_URL=postgresql://...?...sslmode=require`
+- `AUTH_SECRET` from Secret Manager
+- `NEXT_PUBLIC_PERSISTENCE=server`
+- remove SQLite bucket mount (`/app/data`) for Postgres mode

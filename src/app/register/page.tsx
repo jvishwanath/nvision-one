@@ -26,7 +26,7 @@ export default function RegisterPage() {
       });
       const ok = await login(email.trim(), password);
       if (ok) {
-        router.replace("/");
+        window.location.replace("/");
       } else {
         router.replace("/login");
       }

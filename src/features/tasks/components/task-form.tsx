@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,6 +27,15 @@ export function TaskForm({ open, onClose, onSubmit, initialData }: TaskFormProps
     const [description, setDescription] = useState(initialData?.description ?? "");
     const [priority, setPriority] = useState<string>(initialData?.priority ?? "medium");
     const [dueDate, setDueDate] = useState(initialData?.dueDate ?? "");
+
+    useEffect(() => {
+        if (open) {
+            setTitle(initialData?.title ?? "");
+            setDescription(initialData?.description ?? "");
+            setPriority(initialData?.priority ?? "medium");
+            setDueDate(initialData?.dueDate ?? "");
+        }
+    }, [open, initialData]);
 
     const handleSubmit = () => {
         if (!title.trim()) return;

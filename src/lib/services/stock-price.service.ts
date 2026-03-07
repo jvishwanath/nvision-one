@@ -18,7 +18,17 @@ type StooqRow = {
     Volume?: string;
 };
 
+function isStooqSupported(symbol: string): boolean {
+    const upper = symbol.trim().toUpperCase();
+    return !upper.startsWith("^") && !upper.includes("-");
+}
+
+function emptyQuote(symbol: string): StockQuote {
+    return { symbol, name: symbol, price: 0, change: 0, changePercent: 0, currency: "USD" };
+}
+
 async function fetchStooqQuote(symbol: string): Promise<StockQuote> {
+    if (!isStooqSupported(symbol)) return emptyQuote(symbol);
     const ticker = `${symbol.toLowerCase()}.us`;
     const url = `${STOOQ_DAILY_ENDPOINT}?s=${encodeURIComponent(ticker)}&i=d`;
     const response = await fetch(url, {
@@ -78,6 +88,11 @@ async function fetchStooqQuote(symbol: string): Promise<StockQuote> {
     };
 }
 
+function isSymbolOnlyName(name: string | undefined, symbol: string): boolean {
+    if (!name) return true;
+    return name.trim().toUpperCase() === symbol.trim().toUpperCase();
+}
+
 export interface QuoteSearchResult {
     symbol: string;
     name: string;
@@ -105,9 +120,19 @@ function assertString(value: string, field: string): string {
 }
 
 function mapQuotePayload(payload: any): StockQuote {
+    const resolvedName =
+        payload.longName ??
+        payload.displayName ??
+        payload.shortName ??
+        payload.longname ??
+        payload.shortname ??
+        payload.name ??
+        payload.symbol ??
+        "Unknown";
+
     return {
         symbol: payload.symbol ?? "",
-        name: payload.shortName ?? payload.longName ?? payload.symbol ?? "Unknown",
+        name: resolvedName,
         price: Number(payload.regularMarketPrice ?? 0),
         change: Number(payload.regularMarketChange ?? 0),
         changePercent: Number(payload.regularMarketChangePercent ?? 0),
@@ -149,12 +174,36 @@ export class YahooStockPriceService implements IStockPriceService {
             );
 
             const filled = await Promise.all(
-                normalizedSymbols.map(async (symbol) => bySymbol.get(symbol) ?? fetchStooqQuote(symbol))
+                normalizedSymbols.map(async (symbol) => {
+                    const yahoo = bySymbol.get(symbol);
+                    if (yahoo) return yahoo;
+                    try { return await fetchStooqQuote(symbol); } catch { return emptyQuote(symbol); }
+                })
             );
 
-            return filled;
+            // Enrich any symbol-only names via Yahoo search
+            const enriched = await Promise.all(
+                filled.map(async (quote) => {
+                    if (!isSymbolOnlyName(quote.name, quote.symbol)) return quote;
+                    const name = await this.resolveNameViaSearch(quote.symbol);
+                    return name ? { ...quote, name } : quote;
+                })
+            );
+
+            return enriched;
         } catch {
-            return Promise.all(normalizedSymbols.map((symbol) => fetchStooqQuote(symbol)));
+            const fallback = await Promise.all(
+                normalizedSymbols.map(async (symbol) => {
+                    try { return await fetchStooqQuote(symbol); } catch { return emptyQuote(symbol); }
+                })
+            );
+            const enriched = await Promise.all(
+                fallback.map(async (quote) => {
+                    const name = await this.resolveNameViaSearch(quote.symbol);
+                    return name ? { ...quote, name } : quote;
+                })
+            );
+            return enriched;
         }
     }
 
@@ -171,8 +220,27 @@ export class YahooStockPriceService implements IStockPriceService {
         const data = await fetchJson<any>(`${SEARCH_ENDPOINT}?q=${encodeURIComponent(normalized)}`);
         const quotes = data?.quotes ?? [];
         return quotes
-            .filter((item: any) => item.symbol && item.shortname)
-            .map((item: any) => ({ symbol: item.symbol, name: item.shortname }));
+            .filter((item: any) => item.symbol && (item.longname || item.shortname))
+            .map((item: any) => ({
+                symbol: item.symbol,
+                name: item.longname ?? item.shortname,
+            }));
+    }
+
+    private async resolveNameViaSearch(symbol: string): Promise<string | null> {
+        try {
+            const candidates = await this.search(symbol);
+            const normalized = symbol.toUpperCase();
+            const match =
+                candidates.find((c) => c.symbol.toUpperCase() === normalized) ??
+                candidates.find((c) => c.symbol.toUpperCase().startsWith(normalized));
+            if (match?.name && !isSymbolOnlyName(match.name, symbol)) {
+                return match.name;
+            }
+        } catch {
+            // Silent fallback.
+        }
+        return null;
     }
 }
 

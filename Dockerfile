@@ -14,6 +14,8 @@ RUN npm config set strict-ssl false \
   && npm config set strict-ssl true
 
 COPY . .
+RUN npm run db:generate \
+  && npm run db:generate:pg
 RUN npm run build
 
 FROM node:20-bookworm-slim AS runner
@@ -26,6 +28,7 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/src/server/db/migrations ./src/server/db/migrations
+COPY --from=builder /app/src/server/db/migrations-pg ./src/server/db/migrations-pg
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
 RUN mkdir -p /app/data

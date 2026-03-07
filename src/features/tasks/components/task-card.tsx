@@ -1,8 +1,9 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, Trash2, Calendar, Pencil } from "lucide-react";
+import { Check, Trash2, Calendar, Pencil, Ellipsis } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Task } from "../types";
 
@@ -21,9 +22,54 @@ const priorityVariant: Record<Task["priority"], "default" | "primary" | "success
 };
 
 export function TaskCard({ task, onToggle, onDelete, onEdit }: TaskCardProps) {
+    const [actionsOpen, setActionsOpen] = useState(false);
+    const pointerStartXRef = useRef<number | null>(null);
+
+    const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (!event.isPrimary) return;
+        pointerStartXRef.current = event.clientX;
+    };
+
+    const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+        const startX = pointerStartXRef.current;
+        pointerStartXRef.current = null;
+        if (startX === null) return;
+        const deltaX = event.clientX - startX;
+        if (deltaX < -32) {
+            setActionsOpen(true);
+        } else if (deltaX > 20) {
+            setActionsOpen(false);
+        }
+    };
+
     return (
-        <Card className="animate-fade-in">
-            <div className="flex items-start gap-3">
+        <div
+            className="relative overflow-hidden rounded-xl"
+            onPointerDown={handlePointerDown}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={() => {
+                pointerStartXRef.current = null;
+            }}
+        >
+            <div className="absolute inset-y-0 right-0 w-24 flex items-center justify-center gap-1 bg-muted/70">
+                <button
+                    onClick={() => onEdit(task)}
+                    className="h-8 w-8 rounded-lg bg-primary text-primary-foreground active:scale-95 transition-all flex items-center justify-center"
+                    aria-label={`Edit ${task.title}`}
+                >
+                    <Pencil className="h-3.5 w-3.5" />
+                </button>
+                <button
+                    onClick={() => onDelete(task.id)}
+                    className="h-8 w-8 rounded-lg bg-destructive text-destructive-foreground active:scale-95 transition-all flex items-center justify-center"
+                    aria-label={`Delete ${task.title}`}
+                >
+                    <Trash2 className="h-3.5 w-3.5" />
+                </button>
+            </div>
+
+            <Card className={`animate-fade-in transition-transform duration-200 ${actionsOpen ? "-translate-x-24" : "translate-x-0"}`}>
+                <div className="flex items-start gap-3">
                 {/* Checkbox */}
                 <button
                     onClick={() => onToggle(task.id)}
@@ -68,21 +114,16 @@ export function TaskCard({ task, onToggle, onDelete, onEdit }: TaskCardProps) {
 
                 <div className="shrink-0 flex items-center gap-1">
                     <button
-                        onClick={() => onEdit(task)}
-                        className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
-                        aria-label={`Edit ${task.title}`}
+                        type="button"
+                        onClick={() => setActionsOpen((prev) => !prev)}
+                        className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                        aria-label={`${actionsOpen ? "Hide" : "Show"} actions for ${task.title}`}
                     >
-                        <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                        onClick={() => onDelete(task.id)}
-                        className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                        aria-label={`Delete ${task.title}`}
-                    >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Ellipsis className="h-3.5 w-3.5" />
                     </button>
                 </div>
             </div>
-        </Card>
+            </Card>
+        </div>
     );
 }

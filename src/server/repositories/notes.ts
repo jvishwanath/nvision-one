@@ -5,7 +5,7 @@ import type { CreateNoteInput, Note } from "@/features/notes/types";
 
 async function getTagsByNoteId(noteId: string): Promise<string[]> {
   const rows = await db.select({ tag: notesTags.tag }).from(notesTags).where(eq(notesTags.noteId, noteId));
-  return rows.map((row) => row.tag);
+  return rows.map((row: { tag: string }) => row.tag);
 }
 
 async function withTags(items: Array<Omit<Note, "tags">>): Promise<Note[]> {

@@ -89,57 +89,48 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
-      return;
-    }
+    async function fetchLocationAndWeather() {
+      try {
+        // IP-based geolocation (geojs.io: free, CORS-enabled, no key needed)
+        const geoRes = await fetch("https://get.geojs.io/v1/ip/geo.json");
+        if (!geoRes.ok) return;
+        const geo = (await geoRes.json()) as {
+          city?: string;
+          region?: string;
+          country?: string;
+          latitude?: string;
+          longitude?: string;
+        };
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-
-        try {
-          const [weatherRes, geoRes] = await Promise.all([
-            fetch(
-              `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code`
-            ),
-            fetch(
-              `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${latitude}&longitude=${longitude}&count=1&language=en&format=json`
-            ),
-          ]);
-
-          if (weatherRes.ok) {
-            const weatherJson = (await weatherRes.json()) as {
-              current?: { temperature_2m?: number; weather_code?: number };
-            };
-            const current = weatherJson.current;
-            if (typeof current?.temperature_2m === "number" && typeof current?.weather_code === "number") {
-              const data: WeatherData = {
-                temperature: current.temperature_2m,
-                code: current.weather_code,
-              };
-              setWeatherLabel(`${Math.round(data.temperature)}°C ${weatherCodeToLabel(data.code)}`);
-            }
-          }
-
-          if (geoRes.ok) {
-            const geoJson = (await geoRes.json()) as {
-              results?: Array<{ city?: string; town?: string; village?: string; country?: string }>;
-            };
-            const place = geoJson.results?.[0];
-            if (place) {
-              const locality = place.city ?? place.town ?? place.village;
-              setLocationLabel(locality ? `${locality}, ${place.country ?? ""}`.replace(/,\s*$/, "") : (place.country ?? null));
-            }
-          }
-        } catch {
-          // Silent fallback: greeting stays visible without weather/location.
+        const city = geo.city;
+        const region = geo.region ?? geo.country ?? "";
+        if (city) {
+          setLocationLabel(`${city}, ${region}`.replace(/,\s*$/, ""));
+        } else if (region) {
+          setLocationLabel(region);
         }
-      },
-      () => {
-        // Permission denied or unavailable.
-      },
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
-    );
+
+        const lat = parseFloat(geo.latitude ?? "");
+        const lon = parseFloat(geo.longitude ?? "");
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+        // Weather from Open-Meteo (CORS-enabled)
+        const weatherRes = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&temperature_unit=fahrenheit`
+        );
+        if (!weatherRes.ok) return;
+        const weatherJson = (await weatherRes.json()) as {
+          current?: { temperature_2m?: number; weather_code?: number };
+        };
+        const current = weatherJson.current;
+        if (typeof current?.temperature_2m === "number" && typeof current?.weather_code === "number") {
+          setWeatherLabel(`${Math.round(current.temperature_2m)}°F ${weatherCodeToLabel(current.weather_code)}`);
+        }
+      } catch {
+        // Silent fallback: greeting stays visible without weather/location.
+      }
+    }
+    fetchLocationAndWeather();
   }, []);
 
   if (!mounted) return null;
@@ -192,17 +183,18 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2 mb-1">
             <Sparkles className="h-5 w-5 text-primary" />
             <h2 className="text-xl font-bold">Good {getGreeting()}</h2>
-            {locationLabel || weatherLabel ? (
-              <p className="text-xs text-muted-foreground truncate">
-                {locationLabel ? `${locationLabel}` : ""}
-                {locationLabel && weatherLabel ? " • " : ""}
-                {weatherLabel ? weatherLabel : ""}
-              </p>
-            ) : null}
           </div>
-          <p className="text-sm text-muted-foreground">
-            Here&apos;s your life at a glance
-          </p>
+          {locationLabel || weatherLabel ? (
+            <p className="text-xs text-muted-foreground mb-1">
+              {locationLabel ?? ""}
+              {locationLabel && weatherLabel ? " · " : ""}
+              {weatherLabel ?? ""}
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Here&apos;s your life at a glance
+            </p>
+          )}
         </div>
 
         {/* Overview Cards */}

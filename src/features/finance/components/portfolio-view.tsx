@@ -9,8 +9,17 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useFinanceStore } from "../store";
 
+import type { MarketIndex } from "../store";
+
 type SortMode = "symbol" | "change" | "changePercent";
 type SortDirection = "asc" | "desc";
+
+const INDEX_LABELS: MarketIndex[] = [
+    { label: "DOW", symbol: "^DJI", price: 0, change: 0, changePercent: 0 },
+    { label: "S&P", symbol: "^GSPC", price: 0, change: 0, changePercent: 0 },
+    { label: "NASDAQ", symbol: "^IXIC", price: 0, change: 0, changePercent: 0 },
+    { label: "BTC", symbol: "BTC-USD", price: 0, change: 0, changePercent: 0 },
+];
 
 function formatPrice(value: number, currency = "USD") {
     return new Intl.NumberFormat("en-US", {
@@ -22,7 +31,7 @@ function formatPrice(value: number, currency = "USD") {
 
 export function PortfolioView() {
     const searchParams = useSearchParams();
-    const { quotes, loading, error, refresh, addSymbol, removeSymbol } = useFinanceStore();
+    const { quotes, loading, refreshing, indices, error, refresh, addSymbol, removeSymbol } = useFinanceStore();
     const [symbolInput, setSymbolInput] = useState("");
     const [adding, setAdding] = useState(false);
     const [swipedId, setSwipedId] = useState<string | null>(null);
@@ -33,42 +42,6 @@ export function PortfolioView() {
 
     useEffect(() => {
         refresh();
-    }, [refresh]);
-
-    useEffect(() => {
-        let intervalId: number | undefined;
-
-        const start = () => {
-            if (intervalId) return;
-            intervalId = window.setInterval(() => {
-                if (document.visibilityState === "visible") {
-                    refresh();
-                }
-            }, 60_000);
-        };
-
-        const stop = () => {
-            if (!intervalId) return;
-            window.clearInterval(intervalId);
-            intervalId = undefined;
-        };
-
-        const onVisibilityChange = () => {
-            if (document.visibilityState === "visible") {
-                refresh();
-                start();
-            } else {
-                stop();
-            }
-        };
-
-        start();
-        document.addEventListener("visibilitychange", onVisibilityChange);
-
-        return () => {
-            stop();
-            document.removeEventListener("visibilitychange", onVisibilityChange);
-        };
     }, [refresh]);
 
     useEffect(() => {
@@ -183,11 +156,29 @@ export function PortfolioView() {
                         size="icon"
                         aria-label="Refresh quotes"
                         onClick={refresh}
-                        disabled={loading}
+                        disabled={refreshing}
                     >
-                        <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                        <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
                     </Button>
                 </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 px-1">
+                {(indices.length > 0 ? indices : INDEX_LABELS).map((idx) => {
+                    const idxUp = idx.change >= 0;
+                    const idxColor = idxUp ? "text-emerald-500" : "text-rose-500";
+                    return (
+                        <div key={idx.symbol} className="flex-1 text-center">
+                            <p className="text-[10px] font-medium text-muted-foreground">{idx.label}</p>
+                            <p className="text-[11px] font-semibold tabular-nums">
+                                {idx.price > 0 ? idx.price.toLocaleString("en-US", { maximumFractionDigits: 0 }) : "—"}
+                            </p>
+                            <p className={`text-[10px] font-medium tabular-nums ${idxColor}`}>
+                                {idx.price > 0 ? `${idxUp ? "+" : ""}${idx.changePercent.toFixed(2)}%` : ""}
+                            </p>
+                        </div>
+                    );
+                })}
             </div>
 
             <Card className="p-3 space-y-3">
@@ -217,7 +208,7 @@ export function PortfolioView() {
             </Card>
 
             <div className="space-y-2">
-                {loading &&
+                {loading && visibleQuotes.length === 0 &&
                     placeholderRows.map((_, idx) => (
                         <Card
                             key={`skeleton-${idx}`}
@@ -236,8 +227,7 @@ export function PortfolioView() {
                     </Card>
                 )}
 
-                {!loading &&
-                    visibleQuotes.map((quote) => {
+                {visibleQuotes.map((quote) => {
                         const isUp = quote.change >= 0;
                         const changeClass = isUp ? "text-emerald-500" : "text-rose-500";
 
@@ -276,12 +266,12 @@ export function PortfolioView() {
                                             <p className="text-xs text-muted-foreground truncate">{quote.name}</p>
                                         </div>
                                     </div>
-                                    <div className="text-right leading-tight">
-                                        <p className="text-sm font-semibold">
+                                    <div className="text-right shrink-0">
+                                        <p className="text-sm font-semibold whitespace-nowrap">
                                             {formatPrice(quote.price, quote.currency)}
-                                        </p>
-                                        <p className={`text-[11px] font-semibold ${changeClass}`}>
-                                            {quote.change >= 0 ? "+" : ""}{quote.change.toFixed(2)} ({quote.changePercent.toFixed(2)}%)
+                                            <span className={`ml-2 text-[11px] font-semibold ${changeClass}`}>
+                                                {quote.change >= 0 ? "+" : ""}{quote.change.toFixed(2)} · {quote.changePercent.toFixed(2)}%
+                                            </span>
                                         </p>
                                     </div>
                                 </Card>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, MapPin, Calendar, Trash2, ArrowLeft, Clock, Pencil } from "lucide-react";
+import { Plus, MapPin, Calendar, Trash2, ArrowLeft, Clock, Pencil, Ellipsis } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +58,8 @@ export function TripList() {
     const [time, setTime] = useState("");
     const [notes, setNotes] = useState("");
     const [tag, setTag] = useState<ItineraryTag>("experience");
+    const [actionsOpenTripId, setActionsOpenTripId] = useState<string | null>(null);
+    const [pointerStartX, setPointerStartX] = useState<number | null>(null);
 
     useEffect(() => {
         loadTrips();
@@ -95,6 +97,22 @@ export function TripList() {
         setNotes("");
         setTag("experience");
         setItineraryFormOpen(false);
+    };
+
+    const handleTripPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (!event.isPrimary) return;
+        setPointerStartX(event.clientX);
+    };
+
+    const handleTripPointerUp = (event: React.PointerEvent<HTMLDivElement>, tripId: string) => {
+        if (pointerStartX === null) return;
+        const deltaX = event.clientX - pointerStartX;
+        setPointerStartX(null);
+        if (deltaX < -32) {
+            setActionsOpenTripId(tripId);
+        } else if (deltaX > 20 && actionsOpenTripId === tripId) {
+            setActionsOpenTripId(null);
+        }
     };
 
     /* ── Trip Detail View ──────────── */
@@ -224,45 +242,69 @@ export function TripList() {
             ) : (
                 <div className="space-y-2">
                     {trips.map((trip) => (
-                        <Card
+                        <div
                             key={trip.id}
-                            onClick={() => selectTrip(trip)}
-                            className="animate-fade-in cursor-pointer"
+                            className="relative overflow-hidden rounded-xl"
+                            onPointerDown={handleTripPointerDown}
+                            onPointerUp={(event) => handleTripPointerUp(event, trip.id)}
+                            onPointerCancel={() => setPointerStartX(null)}
                         >
-                            <div className="flex items-start justify-between gap-2">
-                                <div>
-                                    <h4 className="text-sm font-semibold">{trip.name}</h4>
-                                    <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
-                                        <MapPin className="h-3 w-3" />
-                                        {trip.destination}
-                                    </div>
-                                    <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground/60">
-                                        <Calendar className="h-3 w-3" />
-                                        {formatDate(trip.startDate)} — {formatDate(trip.endDate)}
-                                    </div>
-                                </div>
+                            <div className="absolute inset-y-0 right-0 w-24 flex items-center justify-center gap-1 bg-muted/70">
                                 <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        deleteTrip(trip.id);
-                                    }}
-                                    className="shrink-0 h-8 w-8 flex items-center justify-center rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                                >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
+                                    onClick={() => {
                                         setEditingTrip(trip);
                                         setFormOpen(true);
+                                        setActionsOpenTripId(null);
                                     }}
-                                    className="shrink-0 h-8 w-8 flex items-center justify-center rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                                    className="h-8 w-8 rounded-lg bg-primary text-primary-foreground active:scale-95 transition-all flex items-center justify-center"
                                     aria-label={`Edit ${trip.name}`}
                                 >
                                     <Pencil className="h-3.5 w-3.5" />
                                 </button>
+                                <button
+                                    onClick={() => {
+                                        deleteTrip(trip.id);
+                                        setActionsOpenTripId(null);
+                                    }}
+                                    className="h-8 w-8 rounded-lg bg-destructive text-destructive-foreground active:scale-95 transition-all flex items-center justify-center"
+                                    aria-label={`Delete ${trip.name}`}
+                                >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                </button>
                             </div>
-                        </Card>
+
+                            <Card
+                                className={`animate-fade-in transition-transform duration-200 ${actionsOpenTripId === trip.id ? "-translate-x-24" : "translate-x-0"}`}
+                            >
+                                <div className="flex items-start justify-between gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => selectTrip(trip)}
+                                        className="flex-1 text-left"
+                                    >
+                                        <h4 className="text-sm font-semibold">{trip.name}</h4>
+                                        <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
+                                            <MapPin className="h-3 w-3" />
+                                            {trip.destination}
+                                        </div>
+                                        <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground/60">
+                                            <Calendar className="h-3 w-3" />
+                                            {formatDate(trip.startDate)} — {formatDate(trip.endDate)}
+                                        </div>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setActionsOpenTripId((prev) => (prev === trip.id ? null : trip.id))
+                                        }
+                                        className="shrink-0 h-8 w-8 flex items-center justify-center rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
+                                        aria-label={`${actionsOpenTripId === trip.id ? "Hide" : "Show"} actions for ${trip.name}`}
+                                    >
+                                        <Ellipsis className="h-3.5 w-3.5" />
+                                    </button>
+                                </div>
+                            </Card>
+                        </div>
                     ))}
                 </div>
             )}

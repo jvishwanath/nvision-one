@@ -33,8 +33,11 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ loading: true, error: null });
     try {
       await authService.login(email, password);
-      const user = await authService.getCurrentUser();
-      set({ user, loading: false });
+      set({ loading: false });
+      void authService
+        .getCurrentUser()
+        .then((user) => set({ user }))
+        .catch((error) => logger.error("Failed to hydrate auth session after login", error));
       return true;
     } catch (error) {
       logger.error("Login failed", error);

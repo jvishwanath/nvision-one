@@ -8,8 +8,11 @@
     "start": "next start",
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
+    "db:generate:pg": "DB_DRIVER=postgres drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push"
+    "db:migrate:pg": "DB_DRIVER=postgres drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:push:pg": "DB_DRIVER=postgres drizzle-kit push"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.0",
@@ -23,6 +26,7 @@
     "next": "16.1.6",
     "next-auth": "^5.0.0-beta.29",
     "next-themes": "^0.4.6",
+    "pg": "^8.20.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "recharts": "^3.7.0",
@@ -36,6 +40,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^20",
+    "@types/pg": "^8.18.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/uuid": "^10.0.0",
