@@ -79,6 +79,7 @@ async function bootstrapSchema() {
       priority text NOT NULL,
       due_date text,
       completed boolean NOT NULL,
+      subtasks text NOT NULL DEFAULT '[]',
       created_at text NOT NULL,
       updated_at text NOT NULL
     );
@@ -139,7 +140,7 @@ async function bootstrapSchema() {
     CREATE TABLE IF NOT EXISTS itinerary_items (
       id text PRIMARY KEY,
       trip_id text NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
-      day integer NOT NULL,
+      date text NOT NULL,
       activity text NOT NULL,
       time text NOT NULL,
       notes text NOT NULL,
@@ -149,9 +150,21 @@ async function bootstrapSchema() {
   `);
 }
 
+async function applyMigrations() {
+  // Add subtasks column to tasks if missing (migration for existing DBs)
+  const { rows } = await pool.query(`
+    SELECT column_name FROM information_schema.columns
+    WHERE table_name = 'tasks' AND column_name = 'subtasks'
+  `);
+  if (rows.length === 0) {
+    await pool.query(`ALTER TABLE tasks ADD COLUMN subtasks text NOT NULL DEFAULT '[]'`);
+  }
+}
+
 async function main() {
   try {
     await bootstrapSchema();
+    await applyMigrations();
   } finally {
     await pool.end();
   }

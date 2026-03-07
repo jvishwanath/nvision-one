@@ -28,7 +28,7 @@ export type CreateTripInput = z.infer<typeof CreateTripSchema>;
 export const ItineraryItemSchema = z.object({
     id: z.string(),
     tripId: z.string(),
-    day: z.number().int().positive(),
+    date: z.string().min(1, "Date is required"),
     activity: z.string().min(1, "Activity is required"),
     time: z.string(),
     notes: z.string(),

@@ -5,6 +5,7 @@ export const NoteSchema = z.object({
     title: z.string().min(1, "Title is required"),
     content: z.string(),
     tags: z.array(z.string()),
+    pinned: z.boolean().default(false),
     createdAt: z.string(),
     updatedAt: z.string(),
 });

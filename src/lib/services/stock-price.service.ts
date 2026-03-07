@@ -9,6 +9,22 @@ export interface StockQuote {
     marketState?: string;
 }
 
+export interface StockQuoteDetail extends StockQuote {
+    marketCap?: number;
+    dayHigh?: number;
+    dayLow?: number;
+    open?: number;
+    previousClose?: number;
+    fiftyTwoWeekHigh?: number;
+    fiftyTwoWeekLow?: number;
+    volume?: number;
+    avgVolume?: number;
+    peRatio?: number;
+    eps?: number;
+    dividendYield?: number;
+    beta?: number;
+}
+
 type StooqRow = {
     Date?: string;
     Open?: string;
@@ -34,6 +50,7 @@ async function fetchStooqQuote(symbol: string): Promise<StockQuote> {
     const response = await fetch(url, {
         headers: { "Accept": "text/csv" },
         next: { revalidate: 60 },
+        signal: AbortSignal.timeout(5000),
     });
 
     if (!response.ok) {
@@ -101,10 +118,12 @@ export interface QuoteSearchResult {
 export interface IStockPriceService {
     getQuote(symbol: string): Promise<StockQuote>;
     getQuotes(symbols: string[]): Promise<StockQuote[]>;
+    getDetailedQuote(symbol: string): Promise<StockQuoteDetail>;
     search(query: string): Promise<QuoteSearchResult[]>;
 }
 
 const QUOTE_ENDPOINT = "https://query1.finance.yahoo.com/v7/finance/quote";
+const QUOTE_SUMMARY_ENDPOINT = "https://query1.finance.yahoo.com/v10/finance/quoteSummary";
 const SEARCH_ENDPOINT = "https://query2.finance.yahoo.com/v1/finance/search";
 const STOOQ_DAILY_ENDPOINT = "https://stooq.com/q/d/l/";
 
@@ -117,6 +136,66 @@ function assertString(value: string, field: string): string {
         throw new Error(`${field} cannot be empty`);
     }
     return trimmed.toUpperCase();
+}
+
+function rawNum(val: unknown): number | undefined {
+    if (val === null || val === undefined) return undefined;
+    if (typeof val === "number") return val;
+    if (typeof val === "object" && val !== null && "raw" in val) return rawNum((val as Record<string, unknown>).raw);
+    const n = Number(val);
+    return Number.isFinite(n) ? n : undefined;
+}
+
+function mapDetailedPayload(payload: any): StockQuoteDetail {
+    const base = mapQuotePayload(payload);
+    return {
+        ...base,
+        marketCap: rawNum(payload.marketCap),
+        dayHigh: rawNum(payload.regularMarketDayHigh),
+        dayLow: rawNum(payload.regularMarketDayLow),
+        open: rawNum(payload.regularMarketOpen),
+        previousClose: rawNum(payload.regularMarketPreviousClose),
+        fiftyTwoWeekHigh: rawNum(payload.fiftyTwoWeekHigh),
+        fiftyTwoWeekLow: rawNum(payload.fiftyTwoWeekLow),
+        volume: rawNum(payload.regularMarketVolume),
+        avgVolume: rawNum(payload.averageDailyVolume3Month),
+        peRatio: rawNum(payload.trailingPE),
+        eps: rawNum(payload.epsTrailingTwelveMonths),
+        dividendYield: rawNum(payload.dividendYield),
+        beta: rawNum(payload.beta),
+    };
+}
+
+function mapSummaryToDetail(symbol: string, result: any): StockQuoteDetail {
+    const price = result?.price ?? {};
+    const summary = result?.summaryDetail ?? {};
+    const stats = result?.defaultKeyStatistics ?? {};
+
+    return {
+        symbol: (price.symbol ?? symbol).toUpperCase(),
+        name: price.longName ?? price.shortName ?? symbol,
+        price: rawNum(price.regularMarketPrice) ?? 0,
+        change: rawNum(price.regularMarketChange) ?? 0,
+        changePercent: rawNum(price.regularMarketChangePercent) ?? 0,
+        currency: price.currency ?? "USD",
+        exchange: price.exchangeName ?? price.exchange,
+        marketState: price.marketState,
+        marketCap: rawNum(price.marketCap),
+        dayHigh: rawNum(summary.dayHigh ?? price.regularMarketDayHigh),
+        dayLow: rawNum(summary.dayLow ?? price.regularMarketDayLow),
+        open: rawNum(summary.open ?? price.regularMarketOpen),
+        previousClose: rawNum(summary.previousClose ?? price.regularMarketPreviousClose),
+        fiftyTwoWeekHigh: rawNum(summary.fiftyTwoWeekHigh),
+        fiftyTwoWeekLow: rawNum(summary.fiftyTwoWeekLow),
+        volume: rawNum(summary.volume ?? price.regularMarketVolume),
+        avgVolume: rawNum(summary.averageVolume ?? summary.averageDailyVolume3Month),
+        peRatio: rawNum(summary.trailingPE ?? stats.trailingPE),
+        eps: rawNum(stats.trailingEps),
+        dividendYield: rawNum(summary.dividendYield) !== undefined
+            ? (rawNum(summary.dividendYield)! * 100)
+            : undefined,
+        beta: rawNum(stats.beta),
+    };
 }
 
 function mapQuotePayload(payload: any): StockQuote {
@@ -152,6 +231,7 @@ async function fetchJson<T>(url: string): Promise<T> {
             "Origin": "https://finance.yahoo.com",
         },
         next: { revalidate: 60 },
+        signal: AbortSignal.timeout(5000),
     });
     if (!response.ok) {
         throw new Error(`Yahoo Finance request failed: ${response.status}`);
@@ -185,25 +265,33 @@ export class YahooStockPriceService implements IStockPriceService {
             const enriched = await Promise.all(
                 filled.map(async (quote) => {
                     if (!isSymbolOnlyName(quote.name, quote.symbol)) return quote;
-                    const name = await this.resolveNameViaSearch(quote.symbol);
-                    return name ? { ...quote, name } : quote;
+                    try {
+                        const name = await this.resolveNameViaSearch(quote.symbol);
+                        return name ? { ...quote, name } : quote;
+                    } catch { return quote; }
                 })
             );
 
             return enriched;
         } catch {
-            const fallback = await Promise.all(
-                normalizedSymbols.map(async (symbol) => {
-                    try { return await fetchStooqQuote(symbol); } catch { return emptyQuote(symbol); }
-                })
-            );
-            const enriched = await Promise.all(
-                fallback.map(async (quote) => {
-                    const name = await this.resolveNameViaSearch(quote.symbol);
-                    return name ? { ...quote, name } : quote;
-                })
-            );
-            return enriched;
+            try {
+                const fallback = await Promise.all(
+                    normalizedSymbols.map(async (symbol) => {
+                        try { return await fetchStooqQuote(symbol); } catch { return emptyQuote(symbol); }
+                    })
+                );
+                const enriched = await Promise.all(
+                    fallback.map(async (quote) => {
+                        try {
+                            const name = await this.resolveNameViaSearch(quote.symbol);
+                            return name ? { ...quote, name } : quote;
+                        } catch { return quote; }
+                    })
+                );
+                return enriched;
+            } catch {
+                return normalizedSymbols.map(emptyQuote);
+            }
         }
     }
 
@@ -213,6 +301,44 @@ export class YahooStockPriceService implements IStockPriceService {
             throw new Error(`Quote not found for ${symbol}`);
         }
         return quote;
+    }
+
+    async getDetailedQuote(symbol: string): Promise<StockQuoteDetail> {
+        const normalized = assertString(symbol, "symbol");
+
+        // Strategy 1: Yahoo v10 quoteSummary (most detailed)
+        try {
+            const modules = "price,summaryDetail,defaultKeyStatistics";
+            const url = `${QUOTE_SUMMARY_ENDPOINT}/${encodeURIComponent(normalized)}?modules=${modules}`;
+            const data = await fetchJson<any>(url);
+            const result = data?.quoteSummary?.result?.[0];
+            if (result) {
+                const detail = mapSummaryToDetail(normalized, result);
+                if (detail.price > 0) return detail;
+            }
+        } catch {
+            // fall through to v7
+        }
+
+        // Strategy 2: Yahoo v7 quote (flat payload with all fields)
+        try {
+            const data = await fetchJson<any>(`${QUOTE_ENDPOINT}?symbols=${encodeURIComponent(normalized)}`);
+            const results = data?.quoteResponse?.result ?? [];
+            if (results.length > 0) {
+                const detail = mapDetailedPayload(results[0]);
+                if (detail.price > 0) return detail;
+            }
+        } catch {
+            // fall through to basic
+        }
+
+        // Strategy 3: basic getQuote (Stooq fallback, price-only)
+        try {
+            const base = await this.getQuote(symbol);
+            return base;
+        } catch {
+            return { symbol: normalized, name: normalized, price: 0, change: 0, changePercent: 0, currency: "USD" };
+        }
     }
 
     async search(query: string): Promise<QuoteSearchResult[]> {

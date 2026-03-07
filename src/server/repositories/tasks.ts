@@ -1,16 +1,26 @@
 import { and, count, desc, eq } from "drizzle-orm";
 import { db } from "@/server/db";
 import { tasks } from "@/server/db/schema";
-import type { CreateTaskInput, Task } from "@/features/tasks/types";
+import type { CreateTaskInput, Task, Subtask } from "@/features/tasks/types";
 import { TaskPriority } from "@/features/tasks/schemas";
+
+function parseSubtasks(raw: string | null | undefined): Subtask[] {
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw) as Subtask[];
+  } catch {
+    return [];
+  }
+}
 
 type TaskRow = typeof tasks.$inferSelect;
 
 function toClientTask(row: TaskRow): Task {
-  const { userId: _userId, ...task } = row;
+  const { userId: _userId, subtasks: rawSubtasks, ...task } = row;
   return {
     ...task,
     priority: TaskPriority.parse(task.priority),
+    subtasks: parseSubtasks(rawSubtasks),
   };
 }
 
@@ -38,6 +48,7 @@ export async function createTask(userId: string, input: CreateTaskInput): Promis
     priority: input.priority,
     dueDate: input.dueDate,
     completed: false,
+    subtasks: JSON.stringify(input.subtasks ?? []),
     createdAt: now,
     updatedAt: now,
   };
@@ -46,9 +57,14 @@ export async function createTask(userId: string, input: CreateTaskInput): Promis
 }
 
 export async function updateTask(userId: string, id: string, changes: Partial<Task>) {
+  const { subtasks, ...rest } = changes;
+  const dbChanges: Record<string, unknown> = { ...rest, updatedAt: new Date().toISOString() };
+  if (subtasks !== undefined) {
+    dbChanges.subtasks = JSON.stringify(subtasks);
+  }
   await db
     .update(tasks)
-    .set({ ...changes, updatedAt: new Date().toISOString() })
+    .set(dbChanges)
     .where(and(eq(tasks.userId, userId), eq(tasks.id, id)));
 
   return getTaskById(userId, id);

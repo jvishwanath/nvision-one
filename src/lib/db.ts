@@ -8,6 +8,7 @@ export interface TaskRecord {
     priority: "low" | "medium" | "high" | "urgent";
     dueDate: string | null;
     completed: boolean;
+    subtasks: Array<{ id: string; title: string; completed: boolean }>;
     createdAt: string;
     updatedAt: string;
 }
@@ -18,6 +19,7 @@ export interface NoteRecord {
     title: string;
     content: string;
     tags: string[];
+    pinned: boolean;
     createdAt: string;
     updatedAt: string;
 }
@@ -53,7 +55,7 @@ export interface TripRecord {
 export interface ItineraryItemRecord {
     id: string;
     tripId: string;
-    day: number;
+    date: string;
     activity: string;
     time: string;
     notes: string;
@@ -79,6 +81,35 @@ class LifeOSDB extends Dexie {
             watchlist: "id, symbol",
             trips: "id, destination, startDate",
             itineraryItems: "id, tripId, day, [tripId+day]",
+        });
+
+        this.version(3).stores({
+            tasks: "id, priority, completed, dueDate, createdAt, [priority+completed], [priority+dueDate]",
+            notes: "id, *tags, pinned, createdAt",
+            trades: "id, symbol, type, timestamp",
+            watchlist: "id, symbol",
+            trips: "id, destination, startDate",
+            itineraryItems: "id, tripId, day, [tripId+day]",
+        }).upgrade((tx) => {
+            return tx.table("notes").toCollection().modify((note) => {
+                if (note.pinned === undefined) note.pinned = false;
+            });
+        });
+
+        this.version(4).stores({
+            tasks: "id, priority, completed, dueDate, createdAt, [priority+completed], [priority+dueDate]",
+            notes: "id, *tags, pinned, createdAt",
+            trades: "id, symbol, type, timestamp",
+            watchlist: "id, symbol",
+            trips: "id, destination, startDate",
+            itineraryItems: "id, tripId, date, [tripId+date]",
+        }).upgrade((tx) => {
+            return tx.table("itineraryItems").toCollection().modify((item) => {
+                if (item.day !== undefined && item.date === undefined) {
+                    item.date = "";
+                    delete item.day;
+                }
+            });
         });
     }
 }

@@ -1,1 +1,1 @@
-export type { Task, TaskPriority, CreateTaskInput } from "./schemas";
+export type { Task, TaskPriority, CreateTaskInput, Subtask } from "./schemas";

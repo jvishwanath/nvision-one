@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Trip, CreateTripInput, ItineraryItem, CreateItineraryItemInput } from "./types";
+
 import { travelRepository } from "./repository";
 import { logger } from "@/lib/logger";
 
@@ -14,6 +15,7 @@ interface TravelState {
     deleteTrip: (id: string) => Promise<void>;
     selectTrip: (trip: Trip | null) => Promise<void>;
     addItineraryItem: (input: CreateItineraryItemInput) => Promise<void>;
+    updateItineraryItem: (id: string, changes: Partial<ItineraryItem>) => Promise<void>;
     deleteItineraryItem: (id: string) => Promise<void>;
 }
 
@@ -93,6 +95,19 @@ export const useTravelStore = create<TravelState>((set, get) => ({
             }
         } catch (err) {
             logger.error("Failed to add itinerary item", err);
+        }
+    },
+
+    updateItineraryItem: async (id, changes) => {
+        try {
+            await travelRepository.updateItineraryItem(id, changes);
+            const { selectedTrip } = get();
+            if (selectedTrip) {
+                const itinerary = await travelRepository.getItineraryByTrip(selectedTrip.id);
+                set({ itinerary });
+            }
+        } catch (err) {
+            logger.error("Failed to update itinerary item", err);
         }
     },
 

@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Plus, MapPin, Calendar, Trash2, ArrowLeft, Clock, Pencil, Ellipsis } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { Plus, MapPin, Calendar, Trash2, ArrowLeft, Clock, Pencil, Ellipsis, Plane } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,12 @@ import { Select } from "@/components/ui/select";
 import { Dialog } from "@/components/ui/dialog";
 import { useTravelStore } from "../store";
 import { TripForm } from "./trip-form";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toast } from "@/components/ui/toast";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
+import { PullIndicator } from "@/components/ui/pull-indicator";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ListSkeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/utils";
 import type { ItineraryTag, Trip, CreateTripInput } from "../types";
 import { cn } from "@/lib/utils";
@@ -48,18 +54,25 @@ export function TripList() {
         deleteTrip,
         selectTrip,
         addItineraryItem,
+        updateItineraryItem,
         deleteItineraryItem,
     } = useTravelStore();
     const [formOpen, setFormOpen] = useState(false);
     const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
     const [itineraryFormOpen, setItineraryFormOpen] = useState(false);
-    const [day, setDay] = useState("1");
+    const [editingItemId, setEditingItemId] = useState<string | null>(null);
+    const [date, setDate] = useState("");
     const [activity, setActivity] = useState("");
     const [time, setTime] = useState("");
     const [notes, setNotes] = useState("");
     const [tag, setTag] = useState<ItineraryTag>("experience");
     const [actionsOpenTripId, setActionsOpenTripId] = useState<string | null>(null);
     const [pointerStartX, setPointerStartX] = useState<number | null>(null);
+    const [deletingTripId, setDeletingTripId] = useState<string | null>(null);
+    const [deletingItineraryId, setDeletingItineraryId] = useState<string | null>(null);
+
+    const handlePullRefresh = useCallback(async () => { await loadTrips(); }, [loadTrips]);
+    const { pulling, refreshing, pullDistance } = usePullToRefresh({ onRefresh: handlePullRefresh });
 
     useEffect(() => {
         loadTrips();
@@ -76,27 +89,76 @@ export function TripList() {
         if (editingTrip) {
             await updateTrip(editingTrip.id, data);
             setEditingTrip(null);
+            toast("Trip updated");
             return;
         }
-
         await addTrip(data);
+        toast("Trip created");
     };
 
-    const handleAddItinerary = () => {
-        if (!selectedTrip || !activity.trim()) return;
-        addItineraryItem({
-            tripId: selectedTrip.id,
-            day: Number(day),
-            activity: activity.trim(),
-            time,
-            notes: notes.trim(),
-            tag,
-        });
+    const resetItineraryForm = () => {
+        setDate(selectedTrip?.startDate ?? "");
         setActivity("");
         setTime("");
         setNotes("");
         setTag("experience");
+        setEditingItemId(null);
+    };
+
+    const openAddItinerary = () => {
+        resetItineraryForm();
+        setItineraryFormOpen(true);
+    };
+
+    const openEditItinerary = (item: import("../types").ItineraryItem) => {
+        setEditingItemId(item.id);
+        setDate(item.date);
+        setActivity(item.activity);
+        setTime(item.time);
+        setNotes(item.notes);
+        setTag(item.tag);
+        setItineraryFormOpen(true);
+    };
+
+    const handleItinerarySubmit = async () => {
+        if (!selectedTrip || !activity.trim() || !date) return;
+        if (editingItemId) {
+            await updateItineraryItem(editingItemId, {
+                date,
+                activity: activity.trim(),
+                time,
+                notes: notes.trim(),
+                tag,
+            });
+            toast("Activity updated");
+        } else {
+            await addItineraryItem({
+                tripId: selectedTrip.id,
+                date,
+                activity: activity.trim(),
+                time,
+                notes: notes.trim(),
+                tag,
+            });
+            toast("Activity added");
+        }
+        resetItineraryForm();
         setItineraryFormOpen(false);
+    };
+
+    const handleConfirmDeleteTrip = async () => {
+        if (!deletingTripId) return;
+        await deleteTrip(deletingTripId);
+        setDeletingTripId(null);
+        setActionsOpenTripId(null);
+        toast("Trip deleted");
+    };
+
+    const handleConfirmDeleteItinerary = async () => {
+        if (!deletingItineraryId) return;
+        await deleteItineraryItem(deletingItineraryId);
+        setDeletingItineraryId(null);
+        toast("Activity removed");
     };
 
     const handleTripPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -154,7 +216,7 @@ export function TripList() {
                     <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                         Itinerary
                     </h3>
-                    <Button size="sm" onClick={() => setItineraryFormOpen(true)}>
+                    <Button size="sm" onClick={openAddItinerary}>
                         <Plus className="h-3.5 w-3.5 mr-1" /> Add
                     </Button>
                 </div>
@@ -168,11 +230,14 @@ export function TripList() {
                 ) : (
                     <div className="space-y-2">
                         {itinerary.map((item) => (
-                            <Card key={item.id} className="animate-fade-in">
+                            <Card key={item.id} className="animate-fade-in cursor-pointer hover:ring-1 hover:ring-primary/30 transition-all" onClick={() => openEditItinerary(item)}>
                                 <div className="flex items-start justify-between gap-2">
-                                    <div>
+                                    <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                            <Badge variant="primary">Day {item.day}</Badge>
+                                            <Badge variant="primary">
+                                                <Calendar className="h-2.5 w-2.5 mr-1" />
+                                                {formatDate(item.date)}
+                                            </Badge>
                                             <Badge
                                                 className={cn(
                                                     "capitalize border",
@@ -193,22 +258,30 @@ export function TripList() {
                                             <p className="text-xs text-muted-foreground mt-1">{item.notes}</p>
                                         )}
                                     </div>
-                                    <button
-                                        onClick={() => deleteItineraryItem(item.id)}
-                                        className="shrink-0 h-7 w-7 flex items-center justify-center rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                                    >
-                                        <Trash2 className="h-3 w-3" />
-                                    </button>
+                                    <div className="shrink-0 flex items-center gap-0.5">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); openEditItinerary(item); }}
+                                            className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                                        >
+                                            <Pencil className="h-3 w-3" />
+                                        </button>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); setDeletingItineraryId(item.id); }}
+                                            className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                                        >
+                                            <Trash2 className="h-3 w-3" />
+                                        </button>
+                                    </div>
                                 </div>
                             </Card>
                         ))}
                     </div>
                 )}
 
-                <Dialog open={itineraryFormOpen} onClose={() => setItineraryFormOpen(false)} title="Add Activity">
+                <Dialog open={itineraryFormOpen} onClose={() => { setItineraryFormOpen(false); resetItineraryForm(); }} title={editingItemId ? "Edit Activity" : "Add Activity"}>
                     <div className="space-y-4">
                         <div className="grid grid-cols-2 gap-3">
-                            <Input id="itin-day" label="Day" type="number" min="1" value={day} onChange={(e) => setDay(e.target.value)} />
+                            <Input id="itin-date" label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
                             <Input id="itin-time" label="Time" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
                         </div>
                         <Select
@@ -220,9 +293,16 @@ export function TripList() {
                         />
                         <Input id="itin-activity" label="Activity" placeholder="Visit museum" value={activity} onChange={(e) => setActivity(e.target.value)} />
                         <Input id="itin-notes" label="Notes" placeholder="Optional notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
-                        <Button onClick={handleAddItinerary} className="w-full">Add to Itinerary</Button>
+                        <Button onClick={handleItinerarySubmit} className="w-full">{editingItemId ? "Update Activity" : "Add to Itinerary"}</Button>
                     </div>
                 </Dialog>
+
+                <ConfirmDialog
+                    open={deletingItineraryId !== null}
+                    message="This activity will be removed from the itinerary."
+                    onConfirm={handleConfirmDeleteItinerary}
+                    onCancel={() => setDeletingItineraryId(null)}
+                />
             </div>
         );
     }
@@ -230,18 +310,38 @@ export function TripList() {
     /* ── Trip List View ────────────── */
     return (
         <div className="space-y-4">
+            <PullIndicator pulling={pulling} refreshing={refreshing} pullDistance={pullDistance} />
             {loading ? (
-                <div className="flex items-center justify-center py-12">
-                    <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                </div>
+                <ListSkeleton count={3} />
             ) : trips.length === 0 ? (
-                <div className="text-center py-12">
-                    <p className="text-muted-foreground text-sm">No trips yet</p>
-                    <p className="text-muted-foreground/60 text-xs mt-1">Tap + to plan one</p>
-                </div>
+                <EmptyState icon={Plane} title="No trips yet" subtitle="Tap + to plan your next adventure" />
             ) : (
                 <div className="space-y-2">
-                    {trips.map((trip) => (
+                    {[...trips].sort((a, b) => {
+                        const today = new Date().toISOString().slice(0, 10);
+                        const aStatus = a.startDate > today ? 0 : a.endDate >= today ? 1 : 2;
+                        const bStatus = b.startDate > today ? 0 : b.endDate >= today ? 1 : 2;
+                        if (aStatus !== bStatus) return aStatus - bStatus;
+                        return a.startDate.localeCompare(b.startDate);
+                    }).map((trip) => {
+                        const today = new Date().toISOString().slice(0, 10);
+                        const isUpcoming = trip.startDate > today;
+                        const isActive = trip.startDate <= today && trip.endDate >= today;
+                        const isPast = trip.endDate < today;
+                        let statusLabel = "";
+                        let statusColor = "";
+                        if (isActive) {
+                            statusLabel = "In progress";
+                            statusColor = "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30";
+                        } else if (isUpcoming) {
+                            const daysAway = Math.ceil((new Date(trip.startDate).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+                            statusLabel = daysAway === 0 ? "Today!" : daysAway === 1 ? "Tomorrow" : `${daysAway}d away`;
+                            statusColor = "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30";
+                        } else {
+                            statusLabel = "Completed";
+                            statusColor = "bg-muted text-muted-foreground border-border";
+                        }
+                        return (
                         <div
                             key={trip.id}
                             className="relative overflow-hidden rounded-xl"
@@ -262,10 +362,7 @@ export function TripList() {
                                     <Pencil className="h-3.5 w-3.5" />
                                 </button>
                                 <button
-                                    onClick={() => {
-                                        deleteTrip(trip.id);
-                                        setActionsOpenTripId(null);
-                                    }}
+                                    onClick={() => setDeletingTripId(trip.id)}
                                     className="h-8 w-8 rounded-lg bg-destructive text-destructive-foreground active:scale-95 transition-all flex items-center justify-center"
                                     aria-label={`Delete ${trip.name}`}
                                 >
@@ -282,7 +379,12 @@ export function TripList() {
                                         onClick={() => selectTrip(trip)}
                                         className="flex-1 text-left"
                                     >
-                                        <h4 className="text-sm font-semibold">{trip.name}</h4>
+                                        <div className="flex items-center gap-2">
+                                            <h4 className="text-sm font-semibold">{trip.name}</h4>
+                                            <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${statusColor}`}>
+                                                {statusLabel}
+                                            </span>
+                                        </div>
                                         <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
                                             <MapPin className="h-3 w-3" />
                                             {trip.destination}
@@ -305,7 +407,8 @@ export function TripList() {
                                 </div>
                             </Card>
                         </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 
@@ -327,6 +430,13 @@ export function TripList() {
                 }}
                 onSubmit={handleTripSubmit}
                 initialData={editingTrip ?? undefined}
+            />
+
+            <ConfirmDialog
+                open={deletingTripId !== null}
+                message="This trip and its itinerary will be permanently deleted."
+                onConfirm={handleConfirmDeleteTrip}
+                onCancel={() => setDeletingTripId(null)}
             />
         </div>
     );

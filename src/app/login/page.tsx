@@ -1,21 +1,13 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
 import { useAuthStore } from "@/features/auth/store";
 
 export default function LoginPage() {
   const { login, loading, error } = useAuthStore();
-  const { status } = useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
-  useEffect(() => {
-    if (status === "authenticated") {
-      window.location.replace("/");
-    }
-  }, [status]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

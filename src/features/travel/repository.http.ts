@@ -16,5 +16,7 @@ export const travelHttpRepository = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  updateItineraryItem: (id: string, changes: Partial<ItineraryItem>) =>
+    apiClient<ItineraryItem>(`/api/travel/itinerary/${id}`, { method: "PATCH", body: JSON.stringify(changes) }),
   deleteItineraryItem: (id: string) => apiClient<void>(`/api/travel/itinerary/${id}`, { method: "DELETE" }),
 };

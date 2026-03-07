@@ -8,10 +8,11 @@ async function getTagsByNoteId(noteId: string): Promise<string[]> {
   return rows.map((row: { tag: string }) => row.tag);
 }
 
-async function withTags(items: Array<Omit<Note, "tags">>): Promise<Note[]> {
+async function withTags(items: Array<Omit<Note, "tags" | "pinned">>): Promise<Note[]> {
   return Promise.all(
     items.map(async (item) => ({
       ...item,
+      pinned: false,
       tags: await getTagsByNoteId(item.id),
     }))
   );
@@ -48,7 +49,7 @@ export async function createNote(userId: string, input: CreateNoteInput): Promis
     await db.insert(notesTags).values(input.tags.map((tag) => ({ noteId: created.id, tag })));
   }
 
-  return { ...created, tags: input.tags };
+  return { ...created, pinned: input.pinned ?? false, tags: input.tags };
 }
 
 export async function updateNote(userId: string, id: string, changes: Partial<Note>): Promise<Note | null> {

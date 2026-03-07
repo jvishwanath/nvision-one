@@ -2,27 +2,39 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getToken } from "next-auth/jwt";
 
+function externalUrl(path: string, req: NextRequest): URL {
+  const forwardedHost = req.headers.get("x-forwarded-host");
+  const forwardedProto = req.headers.get("x-forwarded-proto");
+  if (forwardedHost) {
+    const proto = forwardedProto ?? "https";
+    return new URL(path, `${proto}://${forwardedHost}`);
+  }
+  return new URL(path, req.url);
+}
+
 export default async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
   const isApi = pathname.startsWith("/api/");
   const isPublicApi = pathname.startsWith("/api/auth/") || pathname === "/api/health";
   const isPublicPage = pathname === "/login" || pathname === "/register";
   const secret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
-  const secureCookie = req.nextUrl.protocol === "https:";
+
+  const forwardedProto = req.headers.get("x-forwarded-proto");
+  const isSecure = forwardedProto === "https" || req.nextUrl.protocol === "https:";
 
   let token = await getToken({
     req,
     secret,
-    secureCookie,
-    cookieName: secureCookie ? "__Secure-authjs.session-token" : "authjs.session-token",
+    secureCookie: isSecure,
+    cookieName: isSecure ? "__Secure-authjs.session-token" : "authjs.session-token",
   });
 
   if (!token) {
     token = await getToken({
       req,
       secret,
-      secureCookie,
-      cookieName: secureCookie ? "__Secure-next-auth.session-token" : "next-auth.session-token",
+      secureCookie: isSecure,
+      cookieName: isSecure ? "__Secure-next-auth.session-token" : "next-auth.session-token",
     });
   }
 
@@ -33,12 +45,12 @@ export default async function middleware(req: NextRequest) {
       if (isApi) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
-      return NextResponse.redirect(new URL("/login", req.url));
+      return NextResponse.redirect(externalUrl("/login", req));
     }
   }
 
   if ((pathname === "/login" || pathname === "/register") && isAuthed) {
-    return NextResponse.redirect(new URL("/", req.url));
+    return NextResponse.redirect(externalUrl("/", req));
   }
 
   return NextResponse.next();

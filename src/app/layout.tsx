@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthSessionProvider } from "@/components/auth-session-provider";
 import { BottomNav } from "@/components/bottom-nav";
+import { ToastContainer } from "@/components/ui/toast";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -40,6 +41,7 @@ export default function RootLayout({
               {children}
             </main>
             <BottomNav />
+            <ToastContainer />
           </ThemeProvider>
         </AuthSessionProvider>
       </body>

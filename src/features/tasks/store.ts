@@ -3,18 +3,25 @@ import type { Task, CreateTaskInput } from "./types";
 import { taskRepository } from "./repository";
 import { logger } from "@/lib/logger";
 
+type TaskSortMode = "created" | "dueDate" | "priority";
+
 interface TaskState {
     tasks: Task[];
     loading: boolean;
-    filter: "all" | "active" | "completed";
+    filter: "all" | "active" | "completed" | "today";
     priorityFilter: Task["priority"] | "all";
+    sortMode: TaskSortMode;
     loadTasks: () => Promise<void>;
     addTask: (input: CreateTaskInput) => Promise<void>;
     updateTask: (id: string, changes: Partial<Task>) => Promise<void>;
     deleteTask: (id: string) => Promise<void>;
     toggleTask: (id: string) => Promise<void>;
-    setFilter: (filter: "all" | "active" | "completed") => void;
+    addSubtask: (taskId: string, title: string) => Promise<void>;
+    toggleSubtask: (taskId: string, subtaskId: string) => Promise<void>;
+    removeSubtask: (taskId: string, subtaskId: string) => Promise<void>;
+    setFilter: (filter: "all" | "active" | "completed" | "today") => void;
     setPriorityFilter: (priority: Task["priority"] | "all") => void;
+    setSortMode: (mode: TaskSortMode) => void;
 }
 
 export const useTaskStore = create<TaskState>((set, get) => ({
@@ -22,6 +29,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     loading: false,
     filter: "all",
     priorityFilter: "all",
+    sortMode: "created" as TaskSortMode,
 
     loadTasks: async () => {
         set({ loading: true });
@@ -74,6 +82,44 @@ export const useTaskStore = create<TaskState>((set, get) => ({
         }
     },
 
+    addSubtask: async (taskId, title) => {
+        try {
+            const task = get().tasks.find((t) => t.id === taskId);
+            if (!task) return;
+            const subtask = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, title, completed: false };
+            const subtasks = [...(task.subtasks ?? []), subtask];
+            await taskRepository.update(taskId, { subtasks });
+            set((s) => ({ tasks: s.tasks.map((t) => t.id === taskId ? { ...t, subtasks } : t) }));
+        } catch (err) {
+            logger.error("Failed to add subtask", err);
+        }
+    },
+
+    toggleSubtask: async (taskId, subtaskId) => {
+        try {
+            const task = get().tasks.find((t) => t.id === taskId);
+            if (!task) return;
+            const subtasks = (task.subtasks ?? []).map((s) => s.id === subtaskId ? { ...s, completed: !s.completed } : s);
+            await taskRepository.update(taskId, { subtasks });
+            set((s) => ({ tasks: s.tasks.map((t) => t.id === taskId ? { ...t, subtasks } : t) }));
+        } catch (err) {
+            logger.error("Failed to toggle subtask", err);
+        }
+    },
+
+    removeSubtask: async (taskId, subtaskId) => {
+        try {
+            const task = get().tasks.find((t) => t.id === taskId);
+            if (!task) return;
+            const subtasks = (task.subtasks ?? []).filter((s) => s.id !== subtaskId);
+            await taskRepository.update(taskId, { subtasks });
+            set((s) => ({ tasks: s.tasks.map((t) => t.id === taskId ? { ...t, subtasks } : t) }));
+        } catch (err) {
+            logger.error("Failed to remove subtask", err);
+        }
+    },
+
     setFilter: (filter) => set({ filter }),
     setPriorityFilter: (priorityFilter) => set({ priorityFilter }),
+    setSortMode: (sortMode) => set({ sortMode }),
 }));

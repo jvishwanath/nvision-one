@@ -73,7 +73,7 @@ export async function countTrips(userId: string): Promise<number> {
 export async function listItineraryByTrip(userId: string, tripId: string): Promise<ItineraryItem[]> {
   const trip = await getTripById(userId, tripId);
   if (!trip) return [];
-  const rows = await db.select().from(itineraryItems).where(eq(itineraryItems.tripId, tripId)).orderBy(itineraryItems.day);
+  const rows = await db.select().from(itineraryItems).where(eq(itineraryItems.tripId, tripId)).orderBy(itineraryItems.date);
   return rows.map(toClientItinerary);
 }
 
@@ -86,7 +86,7 @@ export async function addItineraryItem(userId: string, input: CreateItineraryIte
   const created: ItineraryItem = {
     id: crypto.randomUUID(),
     tripId: input.tripId,
-    day: input.day,
+    date: input.date,
     activity: input.activity,
     time: input.time,
     notes: input.notes,
@@ -94,6 +94,20 @@ export async function addItineraryItem(userId: string, input: CreateItineraryIte
   };
   await db.insert(itineraryItems).values(created);
   return created;
+}
+
+export async function updateItineraryItem(userId: string, id: string, changes: Partial<ItineraryItem>) {
+  const [item] = await db.select().from(itineraryItems).where(eq(itineraryItems.id, id)).limit(1);
+  if (!item) return null;
+
+  const trip = await getTripById(userId, item.tripId);
+  if (!trip) return null;
+
+  const { id: _id, tripId: _tripId, ...allowed } = changes;
+  await db.update(itineraryItems).set(allowed).where(eq(itineraryItems.id, id));
+
+  const [updated] = await db.select().from(itineraryItems).where(eq(itineraryItems.id, id)).limit(1);
+  return updated ? toClientItinerary(updated) : null;
 }
 
 export async function deleteItineraryItem(userId: string, id: string) {

@@ -26,6 +26,7 @@ export const tasks = sqliteTable("tasks", {
   priority: text("priority").notNull(),
   dueDate: text("due_date"),
   completed: integer("completed", { mode: "boolean" }).notNull(),
+  subtasks: text("subtasks").notNull().default("[]"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 }, (table) => ({
@@ -92,7 +93,7 @@ export const trips = sqliteTable("trips", {
 export const itineraryItems = sqliteTable("itinerary_items", {
   id: text("id").primaryKey(),
   tripId: text("trip_id").notNull().references(() => trips.id, { onDelete: "cascade" }),
-  day: integer("day").notNull(),
+  date: text("date").notNull(),
   activity: text("activity").notNull(),
   time: text("time").notNull(),
   notes: text("notes").notNull(),

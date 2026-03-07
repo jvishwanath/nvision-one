@@ -10,9 +10,7 @@
     "db:generate": "drizzle-kit generate",
     "db:generate:pg": "DB_DRIVER=postgres drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:migrate:pg": "DB_DRIVER=postgres drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
-    "db:push:pg": "DB_DRIVER=postgres drizzle-kit push"
+    "db:push": "drizzle-kit push"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.0",

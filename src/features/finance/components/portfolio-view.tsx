@@ -3,11 +3,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useSearchParams } from "next/navigation";
-import { RefreshCw, Plus, X, Search, ArrowUpDown, DollarSign, Percent } from "lucide-react";
+import { RefreshCw, Plus, X, Search, ArrowUpDown, DollarSign, Percent, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DetailSheet } from "@/components/ui/detail-sheet";
+import { toast } from "@/components/ui/toast";
+import { apiClient } from "@/lib/api-client";
 import { useFinanceStore } from "../store";
+import type { StockQuoteDetail } from "@/lib/services/stock-price.service";
 
 import type { MarketIndex } from "../store";
 
@@ -38,7 +43,25 @@ export function PortfolioView() {
     const [searchQuery, setSearchQuery] = useState("");
     const [sortMode, setSortMode] = useState<SortMode>("symbol");
     const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+    const [removingId, setRemovingId] = useState<string | null>(null);
+    const [detailOpen, setDetailOpen] = useState(false);
+    const [detailLoading, setDetailLoading] = useState(false);
+    const [detailData, setDetailData] = useState<StockQuoteDetail | null>(null);
     const pointerStartXRef = useRef<number | null>(null);
+
+    const openDetail = async (symbol: string) => {
+        setDetailOpen(true);
+        setDetailLoading(true);
+        setDetailData(null);
+        try {
+            const data = await apiClient<StockQuoteDetail>(`/api/finance/quote/${encodeURIComponent(symbol)}`);
+            setDetailData(data);
+        } catch {
+            setDetailData(null);
+        } finally {
+            setDetailLoading(false);
+        }
+    };
 
     useEffect(() => {
         refresh();
@@ -57,9 +80,18 @@ export function PortfolioView() {
         try {
             await addSymbol(symbolInput);
             setSymbolInput("");
+            toast("Symbol added to watchlist");
         } finally {
             setAdding(false);
         }
+    };
+
+    const handleConfirmRemove = async () => {
+        if (!removingId) return;
+        await removeSymbol(removingId);
+        setRemovingId(null);
+        setSwipedId(null);
+        toast("Symbol removed from watchlist");
     };
 
     const placeholderRows = useMemo(() => Array.from({ length: 4 }), []);
@@ -243,10 +275,7 @@ export function PortfolioView() {
                             >
                                 <div className="absolute inset-y-0 right-0 w-20 flex items-center justify-center bg-destructive/15">
                                     <button
-                                        onClick={() => {
-                                            removeSymbol(quote.id);
-                                            setSwipedId(null);
-                                        }}
+                                        onClick={() => setRemovingId(quote.id)}
                                         className="h-9 w-9 rounded-lg bg-destructive text-destructive-foreground active:scale-95 transition-all flex items-center justify-center"
                                         aria-label={`Remove ${quote.symbol}`}
                                         title={`Remove ${quote.symbol}`}
@@ -256,7 +285,8 @@ export function PortfolioView() {
                                 </div>
 
                                 <Card
-                                    className={`px-3 py-2 flex items-center gap-2 transition-transform duration-200 ${swipedId === quote.id ? "-translate-x-20" : "translate-x-0"}`}
+                                    onClick={() => openDetail(quote.symbol)}
+                                    className={`px-3 py-2 flex items-center gap-2 transition-transform duration-200 cursor-pointer ${swipedId === quote.id ? "-translate-x-20" : "translate-x-0"}`}
                                 >
                                     <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-2">
@@ -291,6 +321,98 @@ export function PortfolioView() {
                         aria-label="Search watchlist"
                     />
                 </div>
+            </div>
+
+            <DetailSheet
+                open={detailOpen}
+                onClose={() => { setDetailOpen(false); setDetailData(null); }}
+                title={detailData?.symbol ?? "Loading..."}
+            >
+                {detailLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    </div>
+                ) : detailData ? (
+                    <StockDetailContent data={detailData} />
+                ) : (
+                    <p className="text-sm text-muted-foreground text-center py-8">Unable to load data</p>
+                )}
+            </DetailSheet>
+
+            <ConfirmDialog
+                open={removingId !== null}
+                message="Remove this symbol from your watchlist?"
+                confirmLabel="Remove"
+                onConfirm={handleConfirmRemove}
+                onCancel={() => setRemovingId(null)}
+            />
+        </div>
+    );
+}
+
+function formatCompact(value: number | undefined): string {
+    if (value === undefined || value === null) return "—";
+    if (value >= 1_000_000_000_000) return `$${(value / 1_000_000_000_000).toFixed(2)}T`;
+    if (value >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(2)}B`;
+    if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
+    return `$${value.toLocaleString()}`;
+}
+
+function formatVolume(value: number | undefined): string {
+    if (value === undefined || value === null) return "—";
+    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
+    if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+    return value.toLocaleString();
+}
+
+function StatRow({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="flex items-center justify-between py-2 border-b border-border/30 last:border-0">
+            <span className="text-xs text-muted-foreground">{label}</span>
+            <span className="text-xs font-medium tabular-nums">{value}</span>
+        </div>
+    );
+}
+
+function StockDetailContent({ data }: { data: StockQuoteDetail }) {
+    const isUp = data.change >= 0;
+    const changeColor = isUp ? "text-emerald-500" : "text-rose-500";
+
+    return (
+        <div className="space-y-4">
+            <div>
+                <p className="text-lg font-bold">
+                    {formatPrice(data.price, data.currency)}
+                </p>
+                <p className={`text-sm font-semibold ${changeColor}`}>
+                    {isUp ? "+" : ""}{data.change.toFixed(2)} ({data.changePercent.toFixed(2)}%)
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {data.name}{data.exchange ? ` · ${data.exchange}` : ""}
+                    {data.marketState ? ` · ${data.marketState}` : ""}
+                </p>
+            </div>
+
+            <div className="rounded-xl border border-border/50 px-3">
+                <StatRow label="Market Cap" value={formatCompact(data.marketCap)} />
+                <StatRow label="Open" value={data.open !== undefined ? formatPrice(data.open, data.currency) : "—"} />
+                <StatRow label="Previous Close" value={data.previousClose !== undefined ? formatPrice(data.previousClose, data.currency) : "—"} />
+                <StatRow label="Day High" value={data.dayHigh !== undefined ? formatPrice(data.dayHigh, data.currency) : "—"} />
+                <StatRow label="Day Low" value={data.dayLow !== undefined ? formatPrice(data.dayLow, data.currency) : "—"} />
+            </div>
+
+            <div className="rounded-xl border border-border/50 px-3">
+                <StatRow label="52-Week High" value={data.fiftyTwoWeekHigh !== undefined ? formatPrice(data.fiftyTwoWeekHigh, data.currency) : "—"} />
+                <StatRow label="52-Week Low" value={data.fiftyTwoWeekLow !== undefined ? formatPrice(data.fiftyTwoWeekLow, data.currency) : "—"} />
+                <StatRow label="Volume" value={formatVolume(data.volume)} />
+                <StatRow label="Avg Volume" value={formatVolume(data.avgVolume)} />
+            </div>
+
+            <div className="rounded-xl border border-border/50 px-3">
+                <StatRow label="P/E Ratio" value={data.peRatio !== undefined ? data.peRatio.toFixed(2) : "—"} />
+                <StatRow label="EPS" value={data.eps !== undefined ? `$${data.eps.toFixed(2)}` : "—"} />
+                <StatRow label="Dividend Yield" value={data.dividendYield !== undefined ? `${data.dividendYield.toFixed(2)}%` : "—"} />
+                <StatRow label="Beta" value={data.beta !== undefined ? data.beta.toFixed(2) : "—"} />
             </div>
         </div>
     );

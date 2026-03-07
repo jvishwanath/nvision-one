@@ -55,6 +55,10 @@ const travelLocalRepository = {
         return item;
     },
 
+    async updateItineraryItem(id: string, changes: Partial<ItineraryItem>): Promise<void> {
+        await db.itineraryItems.update(id, changes);
+    },
+
     async deleteItineraryItem(id: string): Promise<void> {
         await db.itineraryItems.delete(id);
     },

@@ -1,72 +1,40 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
+import { Pin } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Ellipsis, Pencil, Trash2 } from "lucide-react";
+import { DetailSheet } from "@/components/ui/detail-sheet";
+import { renderMarkdown } from "@/lib/markdown";
 import type { Note } from "../types";
 
 interface NoteCardProps {
     note: Note;
     onDelete: (id: string) => void;
     onEdit: (note: Note) => void;
+    onTogglePin: (id: string) => void;
 }
 
-export function NoteCard({ note, onDelete, onEdit }: NoteCardProps) {
-    const [actionsOpen, setActionsOpen] = useState(false);
-    const pointerStartXRef = useRef<number | null>(null);
-
-    const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-        if (!event.isPrimary) return;
-        pointerStartXRef.current = event.clientX;
-    };
-
-    const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
-        const startX = pointerStartXRef.current;
-        pointerStartXRef.current = null;
-        if (startX === null) return;
-        const deltaX = event.clientX - startX;
-        if (deltaX < -32) {
-            setActionsOpen(true);
-        } else if (deltaX > 20) {
-            setActionsOpen(false);
-        }
-    };
+export function NoteCard({ note, onDelete, onEdit, onTogglePin }: NoteCardProps) {
+    const [detailOpen, setDetailOpen] = useState(false);
 
     return (
+        <>
         <div
-            className="relative overflow-hidden rounded-xl"
-            onPointerDown={handlePointerDown}
-            onPointerUp={handlePointerUp}
-            onPointerCancel={() => {
-                pointerStartXRef.current = null;
-            }}
+            className="rounded-xl cursor-pointer select-none"
+            onClick={() => setDetailOpen(true)}
         >
-            <div className="absolute inset-y-0 right-0 w-24 flex items-center justify-center gap-1 bg-muted/70">
-                <button
-                    onClick={() => onEdit(note)}
-                    className="h-8 w-8 rounded-lg bg-primary text-primary-foreground active:scale-95 transition-all flex items-center justify-center"
-                    aria-label={`Edit ${note.title}`}
-                >
-                    <Pencil className="h-3.5 w-3.5" />
-                </button>
-                <button
-                    onClick={() => onDelete(note.id)}
-                    className="h-8 w-8 rounded-lg bg-destructive text-destructive-foreground active:scale-95 transition-all flex items-center justify-center"
-                    aria-label={`Delete ${note.title}`}
-                >
-                    <Trash2 className="h-3.5 w-3.5" />
-                </button>
-            </div>
-
-            <Card className={`animate-fade-in transition-transform duration-200 ${actionsOpen ? "-translate-x-24" : "translate-x-0"}`}>
+            <Card className={`animate-fade-in ${note.pinned ? "border-l-2 border-l-primary" : ""}`}>
                 <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-semibold truncate">{note.title}</h4>
+                    <div className="flex items-center gap-1.5">
+                        {note.pinned && <Pin className="h-3 w-3 text-primary shrink-0 rotate-45" />}
+                        <h4 className="text-sm font-semibold truncate">{note.title}</h4>
+                    </div>
                     {note.content && (
-                        <p className="text-xs text-muted-foreground mt-1 line-clamp-3">
-                            {note.content}
-                        </p>
+                        <div className="mt-1 line-clamp-3 text-muted-foreground text-xs">
+                            {renderMarkdown(note.content)}
+                        </div>
                     )}
                     {note.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">
@@ -86,18 +54,69 @@ export function NoteCard({ note, onDelete, onEdit }: NoteCardProps) {
                         })}
                     </p>
                 </div>
-                <div className="shrink-0 flex items-center gap-1">
+                <div className="shrink-0">
                     <button
                         type="button"
-                        onClick={() => setActionsOpen((prev) => !prev)}
-                        className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                        aria-label={`${actionsOpen ? "Hide" : "Show"} actions for ${note.title}`}
+                        onClick={(e) => { e.stopPropagation(); onTogglePin(note.id); }}
+                        className={`h-8 w-8 flex items-center justify-center rounded-lg transition-colors ${note.pinned ? "text-primary hover:bg-primary/10" : "text-muted-foreground hover:bg-secondary hover:text-foreground"}`}
+                        aria-label={note.pinned ? "Unpin note" : "Pin note"}
                     >
-                        <Ellipsis className="h-3.5 w-3.5" />
+                        <Pin className="h-3.5 w-3.5" />
                     </button>
                 </div>
             </div>
             </Card>
         </div>
+
+        <DetailSheet
+            open={detailOpen}
+            onClose={() => setDetailOpen(false)}
+            title={note.title}
+            onEdit={() => { setDetailOpen(false); onEdit(note); }}
+            onDelete={() => { setDetailOpen(false); onDelete(note.id); }}
+            actions={
+                <button
+                    type="button"
+                    onClick={() => onTogglePin(note.id)}
+                    className={`h-8 w-8 flex items-center justify-center rounded-lg transition-colors ${note.pinned ? "text-primary hover:bg-primary/10" : "text-muted-foreground hover:bg-secondary hover:text-foreground"}`}
+                    aria-label={note.pinned ? "Unpin note" : "Pin note"}
+                >
+                    <Pin className="h-3.5 w-3.5" />
+                </button>
+            }
+        >
+            <div className="space-y-4">
+                {note.pinned && (
+                    <div className="flex items-center gap-1.5 text-xs text-primary font-medium">
+                        <Pin className="h-3 w-3 rotate-45" />
+                        Pinned
+                    </div>
+                )}
+
+                {note.content ? (
+                    <div className="prose prose-sm dark:prose-invert max-w-none text-sm">
+                        {renderMarkdown(note.content)}
+                    </div>
+                ) : (
+                    <p className="text-sm text-muted-foreground italic">No content</p>
+                )}
+
+                {note.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                        {note.tags.map((tag) => (
+                            <Badge key={tag} variant="primary" className="text-[10px]">
+                                {tag}
+                            </Badge>
+                        ))}
+                    </div>
+                )}
+
+                <div className="text-[10px] text-muted-foreground/60 space-y-0.5">
+                    <p>Created {new Date(note.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                    <p>Updated {new Date(note.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                </div>
+            </div>
+        </DetailSheet>
+        </>
     );
 }

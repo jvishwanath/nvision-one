@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { signOut, useSession } from "next-auth/react";
 import { UserCircle2, LogOut } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle";
@@ -13,6 +13,18 @@ export function TopBar({ title }: TopBarProps) {
     const { data: session } = useSession();
     const email = session?.user?.email;
     const [menuOpen, setMenuOpen] = useState(false);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!menuOpen) return;
+        function handleClick(e: MouseEvent) {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+                setMenuOpen(false);
+            }
+        }
+        document.addEventListener("pointerdown", handleClick);
+        return () => document.removeEventListener("pointerdown", handleClick);
+    }, [menuOpen]);
 
     return (
         <header className="sticky top-0 z-40 glass border-b border-border/50">
@@ -22,7 +34,7 @@ export function TopBar({ title }: TopBarProps) {
                 </h1>
                 <div className="flex items-center gap-2 relative">
                     {email ? (
-                        <div className="relative">
+                        <div className="relative" ref={menuRef}>
                             <button
                                 type="button"
                                 onClick={() => setMenuOpen((open) => !open)}
@@ -39,7 +51,7 @@ export function TopBar({ title }: TopBarProps) {
                                     </p>
                                     <button
                                         type="button"
-                                        onClick={() => signOut({ callbackUrl: "/login" })}
+                                        onClick={async () => { await signOut({ redirect: false }); window.location.href = "/login"; }}
                                         className="w-full mt-1 px-2 py-1.5 rounded-md text-xs flex items-center gap-1.5 text-left hover:bg-accent"
                                     >
                                         <LogOut className="h-3.5 w-3.5" />

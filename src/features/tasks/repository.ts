@@ -26,6 +26,7 @@ const taskLocalRepository = {
             ...input,
             id: generateId(),
             completed: false,
+            subtasks: [],
             createdAt: now,
             updatedAt: now,
         };

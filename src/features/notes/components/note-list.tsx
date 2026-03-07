@@ -1,27 +1,47 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { Plus, Search } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useNoteStore } from "../store";
 import { NoteCard } from "./note-card";
 import { NoteEditor } from "./note-editor";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toast } from "@/components/ui/toast";
+import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
+import { PullIndicator } from "@/components/ui/pull-indicator";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ListSkeleton } from "@/components/ui/skeleton";
+import { StickyNote } from "lucide-react";
 import type { CreateNoteInput, Note } from "../types";
 
 export function NoteList() {
     const searchParams = useSearchParams();
-    const { notes, loading, searchQuery, selectedTag, loadNotes, addNote, updateNote, deleteNote, setSearchQuery, setSelectedTag } =
+    const { notes, loading, searchQuery, selectedTag, loadNotes, addNote, updateNote, deleteNote, togglePin, setSearchQuery, setSelectedTag } =
         useNoteStore();
     const [editorOpen, setEditorOpen] = useState(false);
     const [editingNote, setEditingNote] = useState<Note | null>(null);
+    const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
+
+    const handlePullRefresh = useCallback(async () => { await loadNotes(); }, [loadNotes]);
+    const { pulling, refreshing, pullDistance } = usePullToRefresh({ onRefresh: handlePullRefresh });
 
     const handleSubmit = async (data: CreateNoteInput) => {
         if (editingNote) {
             await updateNote(editingNote.id, data);
             setEditingNote(null);
+            toast("Note updated");
             return;
         }
         await addNote(data);
+        toast("Note created");
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!deletingNoteId) return;
+        await deleteNote(deletingNoteId);
+        setDeletingNoteId(null);
+        toast("Note deleted");
     };
 
     useEffect(() => {
@@ -54,7 +74,11 @@ export function NoteList() {
         if (selectedTag) {
             result = result.filter((n) => n.tags.includes(selectedTag));
         }
-        return result;
+        return [...result].sort((a, b) => {
+            if (a.pinned && !b.pinned) return -1;
+            if (!a.pinned && b.pinned) return 1;
+            return 0;
+        });
     }, [notes, searchQuery, selectedTag]);
 
     return (
@@ -97,26 +121,28 @@ export function NoteList() {
                 </div>
             )}
 
+            <PullIndicator pulling={pulling} refreshing={refreshing} pullDistance={pullDistance} />
+
             {/* Notes */}
             {loading ? (
-                <div className="flex items-center justify-center py-12">
-                    <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                </div>
+                <ListSkeleton count={4} />
             ) : filteredNotes.length === 0 ? (
-                <div className="text-center py-12">
-                    <p className="text-muted-foreground text-sm">No notes yet</p>
-                    <p className="text-muted-foreground/60 text-xs mt-1">Tap + to create one</p>
-                </div>
+                <EmptyState icon={StickyNote} title="No notes yet" subtitle="Tap + to capture your thoughts" />
             ) : (
                 <div className="space-y-2">
                     {filteredNotes.map((note) => (
                         <NoteCard
                             key={note.id}
                             note={note}
-                            onDelete={deleteNote}
+                            onDelete={(id) => setDeletingNoteId(id)}
                             onEdit={(selectedNote) => {
                                 setEditingNote(selectedNote);
                                 setEditorOpen(true);
+                            }}
+                            onTogglePin={(id) => {
+                                const n = notes.find((x) => x.id === id);
+                                togglePin(id);
+                                toast(n?.pinned ? "Note unpinned" : "Note pinned");
                             }}
                         />
                     ))}
@@ -142,6 +168,13 @@ export function NoteList() {
                 }}
                 onSubmit={handleSubmit}
                 initialData={editingNote ?? undefined}
+            />
+
+            <ConfirmDialog
+                open={deletingNoteId !== null}
+                message="This note will be permanently deleted."
+                onConfirm={handleConfirmDelete}
+                onCancel={() => setDeletingNoteId(null)}
             />
         </div>
     );

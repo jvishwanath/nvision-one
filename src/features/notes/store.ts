@@ -12,6 +12,7 @@ interface NoteState {
     addNote: (input: CreateNoteInput) => Promise<void>;
     updateNote: (id: string, changes: Partial<Note>) => Promise<void>;
     deleteNote: (id: string) => Promise<void>;
+    togglePin: (id: string) => Promise<void>;
     setSearchQuery: (query: string) => void;
     setSelectedTag: (tag: string | null) => void;
     searchNotes: (query: string) => Promise<void>;
@@ -58,6 +59,17 @@ export const useNoteStore = create<NoteState>((set, get) => ({
             await get().loadNotes();
         } catch (err) {
             logger.error("Failed to delete note", err);
+        }
+    },
+
+    togglePin: async (id) => {
+        try {
+            const note = get().notes.find((n) => n.id === id);
+            if (!note) return;
+            await noteRepository.update(id, { pinned: !note.pinned });
+            await get().loadNotes();
+        } catch (err) {
+            logger.error("Failed to toggle pin", err);
         }
     },
 
