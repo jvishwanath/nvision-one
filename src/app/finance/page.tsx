@@ -36,7 +36,7 @@ export default function FinancePage() {
                         <button
                             key={t}
                             onClick={() => setTab(t)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                            className={`px-3 py-1.5 rounded-lg text-base font-medium transition-all duration-200 ${
                                 tab === t
                                     ? "gradient-primary text-white shadow-md"
                                     : "bg-secondary text-muted-foreground hover:text-foreground"

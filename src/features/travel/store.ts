@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import type { Trip, CreateTripInput, ItineraryItem, CreateItineraryItemInput } from "./types";
-
 import { travelRepository } from "./repository";
 import { logger } from "@/lib/logger";
 
@@ -29,98 +28,60 @@ export const useTravelStore = create<TravelState>((set, get) => ({
         set({ loading: true });
         try {
             const trips = await travelRepository.getAllTrips();
-            set({ trips, loading: false });
+            set({ trips });
         } catch (err) {
             logger.error("Failed to load trips", err);
+        } finally {
             set({ loading: false });
         }
     },
 
     addTrip: async (input) => {
-        try {
-            await travelRepository.createTrip(input);
-            await get().loadTrips();
-        } catch (err) {
-            logger.error("Failed to add trip", err);
-        }
+        await travelRepository.createTrip(input);
+        await get().loadTrips();
     },
 
     updateTrip: async (id, changes) => {
-        try {
-            await travelRepository.updateTrip(id, changes);
-            const { selectedTrip } = get();
-            if (selectedTrip?.id === id) {
-                const refreshed = await travelRepository.getTripById(id);
-                set({ selectedTrip: refreshed ?? null });
-            }
-            await get().loadTrips();
-        } catch (err) {
-            logger.error("Failed to update trip", err);
+        await travelRepository.updateTrip(id, changes);
+        if (get().selectedTrip?.id === id) {
+            const refreshed = await travelRepository.getTripById(id);
+            set({ selectedTrip: refreshed ?? null });
         }
+        await get().loadTrips();
     },
 
     deleteTrip: async (id) => {
-        try {
-            await travelRepository.deleteTrip(id);
-            if (get().selectedTrip?.id === id) {
-                set({ selectedTrip: null, itinerary: [] });
-            }
-            await get().loadTrips();
-        } catch (err) {
-            logger.error("Failed to delete trip", err);
+        await travelRepository.deleteTrip(id);
+        if (get().selectedTrip?.id === id) {
+            set({ selectedTrip: null, itinerary: [] });
         }
+        await get().loadTrips();
     },
 
     selectTrip: async (trip) => {
-        set({ selectedTrip: trip });
-        if (trip) {
-            try {
-                const itinerary = await travelRepository.getItineraryByTrip(trip.id);
-                set({ itinerary });
-            } catch (err) {
-                logger.error("Failed to load itinerary", err);
-            }
-        } else {
-            set({ itinerary: [] });
+        set({ selectedTrip: trip, itinerary: [] });
+        if (!trip) return;
+        try {
+            const itinerary = await travelRepository.getItineraryByTrip(trip.id);
+            set({ itinerary });
+        } catch (err) {
+            logger.error("Failed to load itinerary", err);
         }
     },
 
     addItineraryItem: async (input) => {
-        try {
-            await travelRepository.addItineraryItem(input);
-            const { selectedTrip } = get();
-            if (selectedTrip) {
-                const itinerary = await travelRepository.getItineraryByTrip(selectedTrip.id);
-                set({ itinerary });
-            }
-        } catch (err) {
-            logger.error("Failed to add itinerary item", err);
-        }
+        const created = await travelRepository.addItineraryItem(input);
+        set((s) => ({ itinerary: [...s.itinerary, created].sort((a, b) => a.date.localeCompare(b.date)) }));
     },
 
     updateItineraryItem: async (id, changes) => {
-        try {
-            await travelRepository.updateItineraryItem(id, changes);
-            const { selectedTrip } = get();
-            if (selectedTrip) {
-                const itinerary = await travelRepository.getItineraryByTrip(selectedTrip.id);
-                set({ itinerary });
-            }
-        } catch (err) {
-            logger.error("Failed to update itinerary item", err);
-        }
+        const updated = await travelRepository.updateItineraryItem(id, changes);
+        if (!updated) throw new Error("Item not found");
+        set((s) => ({ itinerary: s.itinerary.map((i) => (i.id === id ? updated : i)).sort((a, b) => a.date.localeCompare(b.date)) }));
     },
 
     deleteItineraryItem: async (id) => {
-        try {
-            await travelRepository.deleteItineraryItem(id);
-            const { selectedTrip } = get();
-            if (selectedTrip) {
-                const itinerary = await travelRepository.getItineraryByTrip(selectedTrip.id);
-                set({ itinerary });
-            }
-        } catch (err) {
-            logger.error("Failed to delete itinerary item", err);
-        }
+        await travelRepository.deleteItineraryItem(id);
+        set((s) => ({ itinerary: s.itinerary.filter((i) => i.id !== id) }));
     },
 }));

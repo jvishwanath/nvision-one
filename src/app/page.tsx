@@ -247,7 +247,7 @@ export default function DashboardPage() {
 
         {/* ── Hero Section ──────────────────────── */}
         <div className="animate-fade-in">
-          <h2 className="text-2xl font-bold tracking-tight">
+          <h2 className="text-4xl font-bold tracking-tight">
             Good {getGreeting()}
           </h2>
           <div className="flex items-center gap-3 mt-1.5">
@@ -278,8 +278,8 @@ export default function DashboardPage() {
                   </span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold">Tasks</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
+                  <p className="text-xl font-semibold">Tasks</p>
+                  <p className="text-sm text-muted-foreground mt-0.5">
                     {stats.completedTasks} of {stats.totalTasks} completed
                   </p>
                   {stats.pendingTasks > 0 && (
@@ -309,8 +309,8 @@ export default function DashboardPage() {
               <div className="h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center mx-auto mb-2">
                 <StickyNote className="h-4.5 w-4.5 text-blue-500" />
               </div>
-              <p className="text-lg font-bold tracking-tight">{stats.totalNotes}</p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Notes</p>
+              <p className="text-2xl font-bold tracking-tight">{stats.totalNotes}</p>
+              <p className="text-sm text-muted-foreground uppercase tracking-wider">Notes</p>
             </Card>
           </Link>
 
@@ -319,8 +319,8 @@ export default function DashboardPage() {
               <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-2">
                 <TrendingUp className="h-4.5 w-4.5 text-emerald-500" />
               </div>
-              <p className="text-lg font-bold tracking-tight">{stats.totalWatching}</p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Stocks</p>
+              <p className="text-2xl font-bold tracking-tight">{stats.totalWatching}</p>
+              <p className="text-sm text-muted-foreground uppercase tracking-wider">Stocks</p>
             </Card>
           </Link>
 
@@ -329,8 +329,8 @@ export default function DashboardPage() {
               <div className="h-10 w-10 rounded-xl bg-orange-500/10 flex items-center justify-center mx-auto mb-2">
                 <Plane className="h-4.5 w-4.5 text-orange-500" />
               </div>
-              <p className="text-lg font-bold tracking-tight">{stats.totalTrips}</p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Trips</p>
+              <p className="text-2xl font-bold tracking-tight">{stats.totalTrips}</p>
+              <p className="text-sm text-muted-foreground uppercase tracking-wider">Trips</p>
             </Card>
           </Link>
         </div>
@@ -345,7 +345,7 @@ export default function DashboardPage() {
                     <Plane className="h-5 w-5 text-white" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate">{stats.nextTripName}</p>
+                    <p className="text-xl font-semibold truncate">{stats.nextTripName}</p>
                     {stats.nextTripDestination && (
                       <p className="text-[11px] text-muted-foreground truncate">{stats.nextTripDestination}</p>
                     )}
@@ -366,7 +366,7 @@ export default function DashboardPage() {
 
         {/* ── Quick Actions ─────────────────── */}
         <div className="animate-fade-in" style={{ animationDelay: "240ms" }}>
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2.5">
+          <h3 className="text-base font-semibold text-muted-foreground uppercase tracking-wider mb-2.5">
             Create
           </h3>
           <div className="grid grid-cols-4 gap-2">
@@ -381,7 +381,7 @@ export default function DashboardPage() {
                   <div className={`h-9 w-9 rounded-xl flex items-center justify-center ${action.color}`}>
                     <Plus className="h-4 w-4" />
                   </div>
-                  <span className="text-[11px] font-medium text-muted-foreground">{action.label}</span>
+                  <span className="text-sm font-medium text-muted-foreground">{action.label}</span>
                 </Link>
               );
             })}
@@ -392,7 +392,7 @@ export default function DashboardPage() {
         {weeklyData.some((d) => d.count > 0) && (
           <div className="animate-fade-in" style={{ animationDelay: "300ms" }}>
             <div className="flex items-center justify-between mb-2.5">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              <h3 className="text-base font-semibold text-muted-foreground uppercase tracking-wider">
                 This Week
               </h3>
               <span className="text-[11px] text-muted-foreground">
@@ -436,7 +436,7 @@ export default function DashboardPage() {
         {reminders.length > 0 && (
           <div className="animate-fade-in" style={{ animationDelay: "360ms" }}>
             <div className="flex items-center justify-between mb-2.5">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              <h3 className="text-base font-semibold text-muted-foreground uppercase tracking-wider">
                 Upcoming
               </h3>
               <Link href="/tasks" className="text-[11px] text-primary font-medium hover:underline">
@@ -456,7 +456,7 @@ export default function DashboardPage() {
                         <CalendarClock className={`h-3.5 w-3.5 ${isOverdue ? "text-rose-500" : "text-primary"}`} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-medium line-clamp-1">{task.title}</p>
+                        <p className="text-base font-medium line-clamp-1">{task.title}</p>
                         {task.dueDate && (
                           <p className={`text-[11px] mt-0.5 ${isOverdue ? "text-rose-500 font-medium" : "text-muted-foreground"}`}>
                             {isOverdue ? "Overdue · " : ""}{formatDate(task.dueDate)}

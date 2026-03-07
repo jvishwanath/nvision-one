@@ -56,14 +56,14 @@ export function TaskCard({ task, onToggle, onDelete, onEdit, onToggleSubtask }: 
                 <div className="flex-1 min-w-0">
                     <p
                         className={cn(
-                            "text-sm font-medium leading-tight transition-all",
+                            "text-xl font-semibold leading-tight transition-all",
                             task.completed && "line-through text-muted-foreground"
                         )}
                     >
                         {task.title}
                     </p>
                     {task.description && (
-                        <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                        <div className="text-base text-muted-foreground mt-1 line-clamp-2">
                             {renderMarkdown(task.description)}
                         </div>
                     )}

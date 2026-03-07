@@ -122,28 +122,32 @@ export function TripList() {
 
     const handleItinerarySubmit = async () => {
         if (!selectedTrip || !activity.trim() || !date) return;
-        if (editingItemId) {
-            await updateItineraryItem(editingItemId, {
-                date,
-                activity: activity.trim(),
-                time,
-                notes: notes.trim(),
-                tag,
-            });
-            toast("Activity updated");
-        } else {
-            await addItineraryItem({
-                tripId: selectedTrip.id,
-                date,
-                activity: activity.trim(),
-                time,
-                notes: notes.trim(),
-                tag,
-            });
-            toast("Activity added");
+        try {
+            if (editingItemId) {
+                await updateItineraryItem(editingItemId, {
+                    date,
+                    activity: activity.trim(),
+                    time,
+                    notes: notes.trim(),
+                    tag,
+                });
+                toast("Activity updated");
+            } else {
+                await addItineraryItem({
+                    tripId: selectedTrip.id,
+                    date,
+                    activity: activity.trim(),
+                    time,
+                    notes: notes.trim(),
+                    tag,
+                });
+                toast("Activity added");
+            }
+            resetItineraryForm();
+            setItineraryFormOpen(false);
+        } catch (err) {
+            toast(err instanceof Error ? err.message : "Failed to save activity");
         }
-        resetItineraryForm();
-        setItineraryFormOpen(false);
     };
 
     const handleConfirmDeleteTrip = async () => {
@@ -213,7 +217,7 @@ export function TripList() {
                 </Card>
 
                 <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    <h3 className="text-base font-semibold text-muted-foreground uppercase tracking-wider">
                         Itinerary
                     </h3>
                     <Button size="sm" onClick={openAddItinerary}>
@@ -253,9 +257,9 @@ export function TripList() {
                                                 </span>
                                             )}
                                         </div>
-                                        <p className="text-sm font-medium mt-1.5">{item.activity}</p>
+                                        <p className="text-xl font-medium mt-1.5">{item.activity}</p>
                                         {item.notes && (
-                                            <p className="text-xs text-muted-foreground mt-1">{item.notes}</p>
+                                            <p className="text-sm text-muted-foreground mt-1">{item.notes}</p>
                                         )}
                                     </div>
                                     <div className="shrink-0 flex items-center gap-0.5">
@@ -380,16 +384,16 @@ export function TripList() {
                                         className="flex-1 text-left"
                                     >
                                         <div className="flex items-center gap-2">
-                                            <h4 className="text-sm font-semibold">{trip.name}</h4>
+                                            <h4 className="text-xl font-semibold">{trip.name}</h4>
                                             <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded-full border ${statusColor}`}>
                                                 {statusLabel}
                                             </span>
                                         </div>
-                                        <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
+                                        <div className="flex items-center gap-1.5 mt-1 text-sm text-muted-foreground">
                                             <MapPin className="h-3 w-3" />
                                             {trip.destination}
                                         </div>
-                                        <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-muted-foreground/60">
+                                        <div className="flex items-center gap-1.5 mt-0.5 text-xs text-muted-foreground/60">
                                             <Calendar className="h-3 w-3" />
                                             {formatDate(trip.startDate)} — {formatDate(trip.endDate)}
                                         </div>

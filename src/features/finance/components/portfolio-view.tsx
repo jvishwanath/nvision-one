@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type { PointerEvent as ReactPointerEvent, TouchEvent as ReactTouchEvent } from "react";
 import { useSearchParams } from "next/navigation";
 import { RefreshCw, Plus, X, Search, ArrowUpDown, DollarSign, Percent, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -146,11 +146,29 @@ export function PortfolioView() {
         }
     };
 
+    const handleTouchStart = (event: ReactTouchEvent<HTMLDivElement>) => {
+        const touch = event.touches[0];
+        if (touch) pointerStartXRef.current = touch.clientX;
+    };
+
+    const handleTouchEnd = (event: ReactTouchEvent<HTMLDivElement>, quoteId: string) => {
+        const startX = pointerStartXRef.current;
+        const touch = event.changedTouches[0];
+        pointerStartXRef.current = null;
+        if (startX === null || !touch) return;
+        const deltaX = touch.clientX - startX;
+        if (deltaX < -40) {
+            setSwipedId(quoteId);
+        } else if (deltaX > 20 && swipedId === quoteId) {
+            setSwipedId(null);
+        }
+    };
+
     return (
         <div className="space-y-5">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-lg font-bold">Watchlist</h2>
+                    <h2 className="text-3xl font-bold">Watchlist</h2>
                     <p className="text-xs text-muted-foreground">Track your favorite tickers in real time</p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -201,11 +219,11 @@ export function PortfolioView() {
                     const idxColor = idxUp ? "text-emerald-500" : "text-rose-500";
                     return (
                         <div key={idx.symbol} className="flex-1 text-center">
-                            <p className="text-[10px] font-medium text-muted-foreground">{idx.label}</p>
-                            <p className="text-[11px] font-semibold tabular-nums">
+                            <p className="text-sm font-medium text-muted-foreground">{idx.label}</p>
+                            <p className="text-sm font-semibold tabular-nums">
                                 {idx.price > 0 ? idx.price.toLocaleString("en-US", { maximumFractionDigits: 0 }) : "—"}
                             </p>
-                            <p className={`text-[10px] font-medium tabular-nums ${idxColor}`}>
+                            <p className={`text-xs font-medium tabular-nums ${idxColor}`}>
                                 {idx.price > 0 ? `${idxUp ? "+" : ""}${idx.changePercent.toFixed(2)}%` : ""}
                             </p>
                         </div>
@@ -267,11 +285,14 @@ export function PortfolioView() {
                             <div
                                 key={quote.id}
                                 className="relative overflow-hidden rounded-xl"
+                                style={{ touchAction: "pan-y" }}
                                 onPointerDown={handlePointerDown}
                                 onPointerUp={(event) => handlePointerEnd(event, quote.id)}
                                 onPointerCancel={() => {
                                     pointerStartXRef.current = null;
                                 }}
+                                onTouchStart={handleTouchStart}
+                                onTouchEnd={(event) => handleTouchEnd(event, quote.id)}
                             >
                                 <div className="absolute inset-y-0 right-0 w-20 flex items-center justify-center bg-destructive/15">
                                     <button
@@ -285,25 +306,38 @@ export function PortfolioView() {
                                 </div>
 
                                 <Card
-                                    onClick={() => openDetail(quote.symbol)}
-                                    className={`px-3 py-2 flex items-center gap-2 transition-transform duration-200 cursor-pointer ${swipedId === quote.id ? "-translate-x-20" : "translate-x-0"}`}
+                                    className={`px-3 py-2 flex items-center gap-2 transition-transform duration-200 ${swipedId === quote.id ? "-translate-x-20" : "translate-x-0"}`}
                                 >
-                                    <div className="min-w-0 flex-1">
+                                    <div
+                                        className="min-w-0 flex-1 cursor-pointer"
+                                        onClick={() => openDetail(quote.symbol)}
+                                    >
                                         <div className="flex items-center gap-2">
-                                            <span className="font-mono text-xs font-semibold tracking-tight text-foreground">
+                                            <span className="font-mono text-base font-semibold tracking-tight text-foreground">
                                                 {quote.symbol}
                                             </span>
                                             <p className="text-xs text-muted-foreground truncate">{quote.name}</p>
                                         </div>
                                     </div>
-                                    <div className="text-right shrink-0">
-                                        <p className="text-sm font-semibold whitespace-nowrap">
+                                    <div
+                                        className="text-right shrink-0 cursor-pointer"
+                                        onClick={() => openDetail(quote.symbol)}
+                                    >
+                                        <p className="text-xl font-semibold whitespace-nowrap">
                                             {formatPrice(quote.price, quote.currency)}
                                             <span className={`ml-2 text-[11px] font-semibold ${changeClass}`}>
                                                 {quote.change >= 0 ? "+" : ""}{quote.change.toFixed(2)} · {quote.changePercent.toFixed(2)}%
                                             </span>
                                         </p>
                                     </div>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setRemovingId(quote.id); }}
+                                        className="shrink-0 h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                        aria-label={`Remove ${quote.symbol}`}
+                                        title={`Remove ${quote.symbol}`}
+                                    >
+                                        <X className="h-3.5 w-3.5" />
+                                    </button>
                                 </Card>
                             </div>
                         );
@@ -368,8 +402,8 @@ function formatVolume(value: number | undefined): string {
 function StatRow({ label, value }: { label: string; value: string }) {
     return (
         <div className="flex items-center justify-between py-2 border-b border-border/30 last:border-0">
-            <span className="text-xs text-muted-foreground">{label}</span>
-            <span className="text-xs font-medium tabular-nums">{value}</span>
+            <span className="text-base text-muted-foreground">{label}</span>
+            <span className="text-base font-medium tabular-nums">{value}</span>
         </div>
     );
 }
@@ -381,10 +415,10 @@ function StockDetailContent({ data }: { data: StockQuoteDetail }) {
     return (
         <div className="space-y-4">
             <div>
-                <p className="text-lg font-bold">
+                <p className="text-3xl font-bold">
                     {formatPrice(data.price, data.currency)}
                 </p>
-                <p className={`text-sm font-semibold ${changeColor}`}>
+                <p className={`text-xl font-semibold ${changeColor}`}>
                     {isUp ? "+" : ""}{data.change.toFixed(2)} ({data.changePercent.toFixed(2)}%)
                 </p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">

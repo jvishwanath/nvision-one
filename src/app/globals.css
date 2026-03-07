@@ -28,27 +28,27 @@
 }
 
 .dark {
-  --background: 240 10% 3.9%;
-  --foreground: 0 0% 98%;
-  --card: 240 10% 5.5%;
-  --card-foreground: 0 0% 98%;
-  --popover: 240 10% 5.5%;
-  --popover-foreground: 0 0% 98%;
-  --primary: 262 83% 58%;
+  --background: 240 10% 4.5%;
+  --foreground: 0 0% 95%;
+  --card: 240 6% 8%;
+  --card-foreground: 0 0% 95%;
+  --popover: 240 6% 8%;
+  --popover-foreground: 0 0% 95%;
+  --primary: 262 83% 62%;
   --primary-foreground: 0 0% 98%;
-  --secondary: 240 3.7% 15.9%;
-  --secondary-foreground: 0 0% 98%;
-  --muted: 240 3.7% 15.9%;
-  --muted-foreground: 240 5% 64.9%;
-  --accent: 240 3.7% 15.9%;
-  --accent-foreground: 0 0% 98%;
-  --destructive: 0 62.8% 30.6%;
+  --secondary: 240 4% 18%;
+  --secondary-foreground: 0 0% 95%;
+  --muted: 240 4% 16%;
+  --muted-foreground: 240 5% 72%;
+  --accent: 240 4% 18%;
+  --accent-foreground: 0 0% 95%;
+  --destructive: 0 70% 45%;
   --destructive-foreground: 0 0% 98%;
-  --border: 240 3.7% 15.9%;
-  --input: 240 3.7% 15.9%;
-  --ring: 262 83% 58%;
-  --success: 142 71% 45%;
-  --warning: 38 92% 50%;
+  --border: 240 4% 20%;
+  --input: 240 4% 18%;
+  --ring: 262 83% 62%;
+  --success: 142 71% 50%;
+  --warning: 38 92% 55%;
 }
 
 /* ── Tailwind v4 Theme ─────────────── */
@@ -79,8 +79,8 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 /* ── Base ───────────────────────────── */
@@ -92,10 +92,13 @@
 body {
   background: hsl(var(--background));
   color: hsl(var(--foreground));
-  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
 }
 
 /* ── Scrollbar Styling ─────────────── */

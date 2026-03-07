@@ -1,18 +1,25 @@
 import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthSessionProvider } from "@/components/auth-session-provider";
 import { BottomNav } from "@/components/bottom-nav";
 import { ToastContainer } from "@/components/ui/toast";
 import "./globals.css";
 
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "LifeOS",
-  description: "Your personal life operating system — tasks, notes, finance & travel in one app",
+  title: "NVision One",
+  description: "Your personal super app — tasks, notes, finance & travel in one place",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "LifeOS",
+    title: "NVision One",
   },
 };
 
@@ -33,7 +40,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
       <body className="antialiased">
         <AuthSessionProvider>
           <ThemeProvider>

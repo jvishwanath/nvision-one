@@ -5,36 +5,32 @@ import type { StockQuote } from "@/lib/services";
 import { logger } from "@/lib/logger";
 import { apiClient } from "@/lib/api-client";
 
-const COMPANY_NAME_FALLBACKS: Record<string, string> = {
-    AAPL: "Apple",
-    AMZN: "Amazon",
-    GOOGL: "Alphabet",
-    MSFT: "Microsoft",
-    NVDA: "NVIDIA",
-    TSLA: "Tesla",
+const NAME_FALLBACKS: Record<string, string> = {
+    AAPL: "Apple", AMZN: "Amazon", GOOGL: "Alphabet", MSFT: "Microsoft", NVDA: "NVIDIA", TSLA: "Tesla",
 };
 
-function resolveCompanyName(symbol: string, liveName?: string, cachedName?: string) {
-    const normalizedSymbol = symbol.trim().toUpperCase();
-    const candidate = (liveName ?? cachedName ?? "").trim();
-    if (candidate && candidate.toUpperCase() !== normalizedSymbol) {
-        return candidate;
-    }
-    return COMPANY_NAME_FALLBACKS[normalizedSymbol] ?? normalizedSymbol;
+function resolveName(symbol: string, live?: string, cached?: string): string {
+    const s = symbol.trim().toUpperCase();
+    const candidate = (live ?? cached ?? "").trim();
+    if (candidate && candidate.toUpperCase() !== s) return candidate;
+    return NAME_FALLBACKS[s] ?? s;
 }
 
 const QUOTE_CACHE_KEY = "lifeos_watchlist_quotes";
+const INDICES_CACHE_KEY = "lifeos_market_indices";
 
-function readCachedQuotes(): WatchlistQuote[] {
+function readLocalJson<T>(key: string): T[] {
     if (typeof window === "undefined") return [];
     try {
-        const raw = window.localStorage.getItem(QUOTE_CACHE_KEY);
+        const raw = window.localStorage.getItem(key);
         if (!raw) return [];
-        const parsed = JSON.parse(raw) as WatchlistQuote[];
+        const parsed = JSON.parse(raw);
         return Array.isArray(parsed) ? parsed : [];
-    } catch {
-        return [];
-    }
+    } catch { return []; }
+}
+
+function writeLocalJson(key: string, data: unknown): void {
+    if (typeof window !== "undefined") window.localStorage.setItem(key, JSON.stringify(data));
 }
 
 export interface WatchlistQuote extends StockQuote {
@@ -68,18 +64,19 @@ const INDEX_SYMBOLS = [
     { label: "BTC", symbol: "BTC-USD" },
 ];
 
-const INDICES_CACHE_KEY = "lifeos_market_indices";
-
-function readCachedIndices(): MarketIndex[] {
-    if (typeof window === "undefined") return [];
-    try {
-        const raw = window.localStorage.getItem(INDICES_CACHE_KEY);
-        if (!raw) return [];
-        const parsed = JSON.parse(raw) as MarketIndex[];
-        return Array.isArray(parsed) ? parsed : [];
-    } catch {
-        return [];
-    }
+function mergeQuote(entry: WatchlistEntry, live: StockQuote | undefined, cached: WatchlistQuote | undefined): WatchlistQuote {
+    const hasLive = (live?.price ?? 0) > 0;
+    return {
+        id: entry.id,
+        symbol: entry.symbol,
+        name: resolveName(entry.symbol, live?.name, cached?.name),
+        price: hasLive ? (live?.price ?? 0) : (cached?.price ?? 0),
+        change: hasLive ? (live?.change ?? 0) : (cached?.change ?? 0),
+        changePercent: hasLive ? (live?.changePercent ?? 0) : (cached?.changePercent ?? 0),
+        currency: hasLive ? (live?.currency ?? "USD") : (cached?.currency ?? "USD"),
+        exchange: live?.exchange ?? cached?.exchange,
+        marketState: live?.marketState ?? cached?.marketState,
+    };
 }
 
 export const useFinanceStore = create<FinanceState>((set, get) => ({
@@ -87,89 +84,40 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     refreshing: false,
     symbols: [],
     quotes: [],
-    indices: readCachedIndices(),
+    indices: readLocalJson<MarketIndex>(INDICES_CACHE_KEY),
     error: null,
 
     refresh: async () => {
         const hasExisting = get().quotes.length > 0;
         set({ loading: !hasExisting, refreshing: true, error: null });
         try {
-            let cachedBySymbol = new Map<string, WatchlistQuote>();
-            const existing = get().quotes;
-            if (existing.length > 0) {
-                cachedBySymbol = new Map(existing.map((quote) => [quote.symbol, quote]));
-            } else {
-                const parsed = readCachedQuotes();
-                cachedBySymbol = new Map(parsed.map((quote) => [quote.symbol, quote]));
-            }
+            const cached = new Map<string, WatchlistQuote>(
+                (hasExisting ? get().quotes : readLocalJson<WatchlistQuote>(QUOTE_CACHE_KEY)).map((q) => [q.symbol, q]),
+            );
 
             const entries = await watchlistRepository.ensureDefaults();
-            if (cachedBySymbol.size > 0) {
-                const cachedMerged: WatchlistQuote[] = entries.map((entry) => {
-                    const cached = cachedBySymbol.get(entry.symbol);
-                    return {
-                        id: entry.id,
-                        symbol: entry.symbol,
-                        name: resolveCompanyName(entry.symbol, undefined, cached?.name),
-                        price: cached?.price ?? 0,
-                        change: cached?.change ?? 0,
-                        changePercent: cached?.changePercent ?? 0,
-                        currency: cached?.currency ?? "USD",
-                        exchange: cached?.exchange,
-                        marketState: cached?.marketState,
-                    };
-                });
 
-                set({ symbols: entries, quotes: cachedMerged, loading: true, error: null });
+            if (cached.size > 0) {
+                set({ symbols: entries, quotes: entries.map((e) => mergeQuote(e, undefined, cached.get(e.symbol))) });
             }
 
-            const symbols = entries.map((entry) => entry.symbol);
-            const quotes = await apiClient<StockQuote[]>(`/api/finance/quotes?symbols=${encodeURIComponent(symbols.join(","))}`);
-            const merged: WatchlistQuote[] = entries.map((entry) => {
-                const quote = quotes.find((q) => q.symbol === entry.symbol);
-                const cached = cachedBySymbol.get(entry.symbol);
-                const hasLivePrice = (quote?.price ?? 0) > 0;
-                const name = resolveCompanyName(entry.symbol, quote?.name, cached?.name);
-                return {
-                    id: entry.id,
-                    symbol: entry.symbol,
-                    name,
-                    price: hasLivePrice ? (quote?.price ?? 0) : (cached?.price ?? 0),
-                    change: hasLivePrice ? (quote?.change ?? 0) : (cached?.change ?? 0),
-                    changePercent: hasLivePrice ? (quote?.changePercent ?? 0) : (cached?.changePercent ?? 0),
-                    currency: hasLivePrice ? (quote?.currency ?? "USD") : (cached?.currency ?? quote?.currency ?? "USD"),
-                    exchange: quote?.exchange,
-                    marketState: quote?.marketState,
-                };
-            });
+            const liveQuotes = await apiClient<StockQuote[]>(`/api/finance/quotes?symbols=${encodeURIComponent(entries.map((e) => e.symbol).join(","))}`);
+            const liveMap = new Map(liveQuotes.map((q) => [q.symbol, q]));
+            const merged = entries.map((e) => mergeQuote(e, liveMap.get(e.symbol), cached.get(e.symbol)));
+            writeLocalJson(QUOTE_CACHE_KEY, merged);
+            set({ symbols: entries, quotes: merged, loading: false, refreshing: false });
 
-            if (typeof window !== "undefined") {
-                window.localStorage.setItem(QUOTE_CACHE_KEY, JSON.stringify(merged));
-            }
-
-            set({ symbols: entries, quotes: merged, loading: false, refreshing: false, error: null });
-
-            // Fetch market indices in the background
             try {
-                const idxSymbols = INDEX_SYMBOLS.map((i) => i.symbol).join(",");
-                const idxQuotes = await apiClient<StockQuote[]>(`/api/finance/quotes?symbols=${encodeURIComponent(idxSymbols)}`);
-                const idxBySymbol = new Map(idxQuotes.map((q) => [q.symbol.toUpperCase(), q]));
+                const idxQuotes = await apiClient<StockQuote[]>(`/api/finance/quotes?symbols=${encodeURIComponent(INDEX_SYMBOLS.map((i) => i.symbol).join(","))}`);
+                const idxMap = new Map(idxQuotes.map((q) => [q.symbol.toUpperCase(), q]));
                 const indices: MarketIndex[] = INDEX_SYMBOLS.map((idx) => {
-                    const q = idxBySymbol.get(idx.symbol.toUpperCase());
-                    return {
-                        label: idx.label,
-                        symbol: idx.symbol,
-                        price: q?.price ?? 0,
-                        change: q?.change ?? 0,
-                        changePercent: q?.changePercent ?? 0,
-                    };
+                    const q = idxMap.get(idx.symbol.toUpperCase());
+                    return { label: idx.label, symbol: idx.symbol, price: q?.price ?? 0, change: q?.change ?? 0, changePercent: q?.changePercent ?? 0 };
                 });
-                if (typeof window !== "undefined") {
-                    window.localStorage.setItem(INDICES_CACHE_KEY, JSON.stringify(indices));
-                }
+                writeLocalJson(INDICES_CACHE_KEY, indices);
                 set({ indices });
             } catch {
-                // Indices are best-effort; keep cached values.
+                /* indices are best-effort */
             }
         } catch (err) {
             logger.error("Failed to refresh watchlist", err);
@@ -178,25 +126,15 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     },
 
     addSymbol: async (symbol) => {
-        try {
-            await watchlistRepository.add(symbol);
-            await get().refresh();
-        } catch (err) {
-            logger.error("Failed to add symbol", err);
-            set({ error: err instanceof Error ? err.message : "Failed to add symbol" });
-        }
+        await watchlistRepository.add(symbol);
+        await get().refresh();
     },
 
     removeSymbol: async (id) => {
-        try {
-            await watchlistRepository.remove(id);
-            set((state) => ({
-                symbols: state.symbols.filter((entry) => entry.id !== id),
-                quotes: state.quotes.filter((quote) => quote.id !== id),
-            }));
-        } catch (err) {
-            logger.error("Failed to remove symbol", err);
-            set({ error: err instanceof Error ? err.message : "Failed to remove symbol" });
-        }
+        await watchlistRepository.remove(id);
+        set((s) => ({
+            symbols: s.symbols.filter((e) => e.id !== id),
+            quotes: s.quotes.filter((q) => q.id !== id),
+        }));
     },
 }));

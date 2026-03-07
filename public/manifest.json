@@ -1,7 +1,7 @@
 {
-    "name": "LifeOS",
-    "short_name": "LifeOS",
-    "description": "Your personal life operating system — tasks, notes, finance & travel in one app",
+    "name": "NVision One",
+    "short_name": "NVision One",
+    "description": "Your personal super app — tasks, notes, finance & travel in one place",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#09090b",

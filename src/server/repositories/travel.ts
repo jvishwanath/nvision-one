@@ -1,121 +1,102 @@
 import { and, count, desc, eq } from "drizzle-orm";
 import { db } from "@/server/db";
-import { itineraryItems, trips } from "@/server/db/schema";
+import { getSchema } from "@/server/db/schema-shared";
 import type { CreateItineraryItemInput, CreateTripInput, ItineraryItem, Trip } from "@/features/travel/types";
 import { ItineraryTagSchema } from "@/features/travel/schemas";
 
-type TripRow = typeof trips.$inferSelect;
-type ItineraryRow = typeof itineraryItems.$inferSelect;
+type TripRow = ReturnType<typeof getSchema>["trips"]["$inferSelect"];
+type ItineraryRow = ReturnType<typeof getSchema>["itineraryItems"]["$inferSelect"];
 
-function toClientTrip(row: TripRow): Trip {
-  const { userId: _userId, ...trip } = row;
-  return trip;
+function toTrip(row: TripRow): Trip {
+  return { id: row.id, name: row.name, destination: row.destination, startDate: row.startDate, endDate: row.endDate, createdAt: row.createdAt };
 }
 
-function toClientItinerary(row: ItineraryRow): ItineraryItem {
-  return {
-    ...row,
-    tag: ItineraryTagSchema.parse(row.tag),
-  };
+function toItinerary(row: ItineraryRow): ItineraryItem {
+  return { id: row.id, tripId: row.tripId, date: row.date, activity: row.activity, time: row.time, notes: row.notes, tag: ItineraryTagSchema.parse(row.tag) };
 }
+
+async function ownsTrip(userId: string, tripId: string): Promise<boolean> {
+  const { trips } = getSchema();
+  const [row] = await db.select({ id: trips.id }).from(trips).where(and(eq(trips.id, tripId), eq(trips.userId, userId))).limit(1);
+  return !!row;
+}
+
+/* ── Trips ── */
 
 export async function listTrips(userId: string): Promise<Trip[]> {
+  const { trips } = getSchema();
   const rows = await db.select().from(trips).where(eq(trips.userId, userId)).orderBy(desc(trips.startDate));
-  return rows.map(toClientTrip);
+  return rows.map(toTrip);
 }
 
 export async function getTripById(userId: string, id: string): Promise<Trip | null> {
-  const [trip] = await db
-    .select()
-    .from(trips)
-    .where(and(eq(trips.userId, userId), eq(trips.id, id)))
-    .limit(1);
-  return trip ? toClientTrip(trip) : null;
+  const { trips } = getSchema();
+  const [row] = await db.select().from(trips).where(and(eq(trips.id, id), eq(trips.userId, userId))).limit(1);
+  return row ? toTrip(row) : null;
 }
 
 export async function createTrip(userId: string, input: CreateTripInput): Promise<Trip> {
-  const created: TripRow = {
-    id: crypto.randomUUID(),
-    userId,
-    name: input.name,
-    destination: input.destination,
-    startDate: input.startDate,
-    endDate: input.endDate,
-    createdAt: new Date().toISOString(),
-  };
-  await db.insert(trips).values(created);
-  return toClientTrip(created);
+  const { trips } = getSchema();
+  const row: TripRow = { id: crypto.randomUUID(), userId, ...input, createdAt: new Date().toISOString() };
+  await db.insert(trips).values(row);
+  return toTrip(row);
 }
 
-export async function updateTrip(userId: string, id: string, changes: Partial<Trip>) {
-  await db
-    .update(trips)
-    .set({
-      name: changes.name,
-      destination: changes.destination,
-      startDate: changes.startDate,
-      endDate: changes.endDate,
-    })
-    .where(and(eq(trips.userId, userId), eq(trips.id, id)));
+export async function updateTrip(userId: string, id: string, changes: Partial<CreateTripInput>): Promise<Trip | null> {
+  const { trips } = getSchema();
+  const update: Record<string, string> = {};
+  if (changes.name !== undefined) update.name = changes.name;
+  if (changes.destination !== undefined) update.destination = changes.destination;
+  if (changes.startDate !== undefined) update.startDate = changes.startDate;
+  if (changes.endDate !== undefined) update.endDate = changes.endDate;
 
+  if (Object.keys(update).length === 0) return getTripById(userId, id);
+  await db.update(trips).set(update).where(and(eq(trips.id, id), eq(trips.userId, userId)));
   return getTripById(userId, id);
 }
 
-export async function deleteTrip(userId: string, id: string) {
-  await db.delete(trips).where(and(eq(trips.userId, userId), eq(trips.id, id)));
+export async function deleteTrip(userId: string, id: string): Promise<void> {
+  const { trips } = getSchema();
+  await db.delete(trips).where(and(eq(trips.id, id), eq(trips.userId, userId)));
 }
 
 export async function countTrips(userId: string): Promise<number> {
+  const { trips } = getSchema();
   const [row] = await db.select({ value: count() }).from(trips).where(eq(trips.userId, userId));
   return row?.value ?? 0;
 }
 
+/* ── Itinerary ── */
+
 export async function listItineraryByTrip(userId: string, tripId: string): Promise<ItineraryItem[]> {
-  const trip = await getTripById(userId, tripId);
-  if (!trip) return [];
+  const { itineraryItems } = getSchema();
+  if (!(await ownsTrip(userId, tripId))) return [];
   const rows = await db.select().from(itineraryItems).where(eq(itineraryItems.tripId, tripId)).orderBy(itineraryItems.date);
-  return rows.map(toClientItinerary);
+  return rows.map(toItinerary);
 }
 
 export async function addItineraryItem(userId: string, input: CreateItineraryItemInput): Promise<ItineraryItem> {
-  const trip = await getTripById(userId, input.tripId);
-  if (!trip) {
-    throw new Error("Trip not found");
-  }
-
-  const created: ItineraryItem = {
-    id: crypto.randomUUID(),
-    tripId: input.tripId,
-    date: input.date,
-    activity: input.activity,
-    time: input.time,
-    notes: input.notes,
-    tag: input.tag,
-  };
-  await db.insert(itineraryItems).values(created);
-  return created;
+  const { itineraryItems } = getSchema();
+  if (!(await ownsTrip(userId, input.tripId))) throw new Error("Trip not found");
+  const row: ItineraryRow = { id: crypto.randomUUID(), ...input };
+  await db.insert(itineraryItems).values(row);
+  return toItinerary(row);
 }
 
-export async function updateItineraryItem(userId: string, id: string, changes: Partial<ItineraryItem>) {
+export async function updateItineraryItem(userId: string, id: string, changes: Partial<ItineraryItem>): Promise<ItineraryItem | null> {
+  const { itineraryItems } = getSchema();
   const [item] = await db.select().from(itineraryItems).where(eq(itineraryItems.id, id)).limit(1);
-  if (!item) return null;
-
-  const trip = await getTripById(userId, item.tripId);
-  if (!trip) return null;
+  if (!item || !(await ownsTrip(userId, item.tripId))) return null;
 
   const { id: _id, tripId: _tripId, ...allowed } = changes;
   await db.update(itineraryItems).set(allowed).where(eq(itineraryItems.id, id));
-
   const [updated] = await db.select().from(itineraryItems).where(eq(itineraryItems.id, id)).limit(1);
-  return updated ? toClientItinerary(updated) : null;
+  return updated ? toItinerary(updated) : null;
 }
 
-export async function deleteItineraryItem(userId: string, id: string) {
+export async function deleteItineraryItem(userId: string, id: string): Promise<void> {
+  const { itineraryItems } = getSchema();
   const [item] = await db.select().from(itineraryItems).where(eq(itineraryItems.id, id)).limit(1);
-  if (!item) return;
-
-  const trip = await getTripById(userId, item.tripId);
-  if (!trip) return;
-
+  if (!item || !(await ownsTrip(userId, item.tripId))) return;
   await db.delete(itineraryItems).where(eq(itineraryItems.id, id));
 }

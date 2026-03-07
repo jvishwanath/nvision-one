@@ -9,7 +9,6 @@ export const travelHttpRepository = {
   updateTrip: (id: string, changes: Partial<Trip>) =>
     apiClient<Trip>(`/api/travel/trips/${id}`, { method: "PATCH", body: JSON.stringify(changes) }),
   deleteTrip: (id: string) => apiClient<void>(`/api/travel/trips/${id}`, { method: "DELETE" }),
-  countTrips: async () => (await travelHttpRepository.getAllTrips()).length,
   getItineraryByTrip: (tripId: string) => apiClient<ItineraryItem[]>(`/api/travel/trips/${tripId}/itinerary`),
   addItineraryItem: (input: CreateItineraryItemInput) =>
     apiClient<ItineraryItem>(`/api/travel/trips/${input.tripId}/itinerary`, {

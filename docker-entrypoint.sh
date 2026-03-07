@@ -23,11 +23,8 @@ if [ "$DB_DRIVER" = "sqlite" ]; then
     fi
   fi
 
-  if [ -f "/app/src/server/db/migrations/meta/_journal.json" ]; then
-    node <<'NODE'
+  node <<'NODE'
 const Database = require("better-sqlite3");
-const { drizzle } = require("drizzle-orm/better-sqlite3");
-const { migrate } = require("drizzle-orm/better-sqlite3/migrator");
 
 const databaseUrl = process.env.DATABASE_URL || "/app/data/lifeos.db";
 if (!databaseUrl.startsWith("file:") && databaseUrl.includes("://")) {
@@ -37,13 +34,98 @@ if (!databaseUrl.startsWith("file:") && databaseUrl.includes("://")) {
 const dbPath = databaseUrl.startsWith("file:") ? databaseUrl.slice(5) : databaseUrl;
 const sqlite = new Database(dbPath);
 sqlite.pragma("foreign_keys = ON");
-const db = drizzle(sqlite);
 
-migrate(db, { migrationsFolder: "/app/src/server/db/migrations" });
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id text PRIMARY KEY NOT NULL,
+    email text NOT NULL,
+    password_hash text NOT NULL,
+    name text NOT NULL,
+    created_at text NOT NULL
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS users_email_idx ON users (email);
+
+  CREATE TABLE IF NOT EXISTS tasks (
+    id text PRIMARY KEY NOT NULL,
+    user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title text NOT NULL,
+    description text NOT NULL,
+    priority text NOT NULL,
+    due_date text,
+    completed integer NOT NULL,
+    subtasks text DEFAULT '[]' NOT NULL,
+    created_at text NOT NULL,
+    updated_at text NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS tasks_user_idx ON tasks (user_id);
+  CREATE INDEX IF NOT EXISTS tasks_priority_idx ON tasks (priority);
+  CREATE INDEX IF NOT EXISTS tasks_due_date_idx ON tasks (due_date);
+
+  CREATE TABLE IF NOT EXISTS notes (
+    id text PRIMARY KEY NOT NULL,
+    user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title text NOT NULL,
+    content text NOT NULL,
+    created_at text NOT NULL,
+    updated_at text NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS notes_user_idx ON notes (user_id);
+  CREATE INDEX IF NOT EXISTS notes_created_at_idx ON notes (created_at);
+
+  CREATE TABLE IF NOT EXISTS notes_tags (
+    note_id text NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+    tag text NOT NULL,
+    PRIMARY KEY (note_id, tag)
+  );
+  CREATE INDEX IF NOT EXISTS notes_tags_note_idx ON notes_tags (note_id);
+
+  CREATE TABLE IF NOT EXISTS trades (
+    id text PRIMARY KEY NOT NULL,
+    user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    symbol text NOT NULL,
+    type text NOT NULL,
+    quantity integer NOT NULL,
+    price integer NOT NULL,
+    timestamp text NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS trades_user_idx ON trades (user_id);
+  CREATE INDEX IF NOT EXISTS trades_symbol_idx ON trades (symbol);
+
+  CREATE TABLE IF NOT EXISTS watchlist (
+    id text PRIMARY KEY NOT NULL,
+    user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    symbol text NOT NULL,
+    created_at text NOT NULL
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS watchlist_user_symbol_idx ON watchlist (user_id, symbol);
+
+  CREATE TABLE IF NOT EXISTS trips (
+    id text PRIMARY KEY NOT NULL,
+    user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name text NOT NULL,
+    destination text NOT NULL,
+    start_date text NOT NULL,
+    end_date text NOT NULL,
+    created_at text NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS trips_user_idx ON trips (user_id);
+  CREATE INDEX IF NOT EXISTS trips_start_date_idx ON trips (start_date);
+
+  CREATE TABLE IF NOT EXISTS itinerary_items (
+    id text PRIMARY KEY NOT NULL,
+    trip_id text NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+    date text NOT NULL,
+    activity text NOT NULL,
+    time text NOT NULL,
+    notes text NOT NULL,
+    tag text NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS itinerary_items_trip_idx ON itinerary_items (trip_id);
+`);
+
 sqlite.close();
 NODE
-    export SKIP_STARTUP_MIGRATIONS=1
-  fi
+  export SKIP_STARTUP_MIGRATIONS=1
 fi
 
 if [ "$DB_DRIVER" = "postgres" ]; then
@@ -159,12 +241,44 @@ async function applyMigrations() {
   if (rows.length === 0) {
     await pool.query(`ALTER TABLE tasks ADD COLUMN subtasks text NOT NULL DEFAULT '[]'`);
   }
+
+  // Rename itinerary_items.day → date if old column exists
+  const { rows: dayCol } = await pool.query(`
+    SELECT column_name FROM information_schema.columns
+    WHERE table_name = 'itinerary_items' AND column_name = 'day'
+  `);
+  if (dayCol.length > 0) {
+    const { rows: dateCol } = await pool.query(`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'itinerary_items' AND column_name = 'date'
+    `);
+    if (dateCol.length === 0) {
+      await pool.query(`ALTER TABLE itinerary_items RENAME COLUMN "day" TO "date"`);
+    }
+  }
+
+  // Fix itinerary_items.date type: integer → text (legacy from old 'day integer' column)
+  const { rows: dateType } = await pool.query(`
+    SELECT data_type FROM information_schema.columns
+    WHERE table_name = 'itinerary_items' AND column_name = 'date'
+  `);
+  if (dateType.length > 0 && dateType[0].data_type === 'integer') {
+    await pool.query(`ALTER TABLE itinerary_items ALTER COLUMN "date" TYPE text USING "date"::text`);
+  }
+}
+
+async function disableRLS() {
+  const tables = ['users', 'tasks', 'notes', 'notes_tags', 'trades', 'watchlist', 'trips', 'itinerary_items'];
+  for (const t of tables) {
+    await pool.query(`ALTER TABLE IF EXISTS "${t}" DISABLE ROW LEVEL SECURITY`);
+  }
 }
 
 async function main() {
   try {
     await bootstrapSchema();
     await applyMigrations();
+    await disableRLS();
   } finally {
     await pool.end();
   }

@@ -1,6 +1,6 @@
 import { and, count, desc, eq } from "drizzle-orm";
 import { db } from "@/server/db";
-import { tasks } from "@/server/db/schema";
+import { getSchema } from "@/server/db/schema-shared";
 import type { CreateTaskInput, Task, Subtask } from "@/features/tasks/types";
 import { TaskPriority } from "@/features/tasks/schemas";
 
@@ -13,7 +13,7 @@ function parseSubtasks(raw: string | null | undefined): Subtask[] {
   }
 }
 
-type TaskRow = typeof tasks.$inferSelect;
+type TaskRow = ReturnType<typeof getSchema>["tasks"]["$inferSelect"];
 
 function toClientTask(row: TaskRow): Task {
   const { userId: _userId, subtasks: rawSubtasks, ...task } = row;
@@ -25,11 +25,13 @@ function toClientTask(row: TaskRow): Task {
 }
 
 export async function listTasks(userId: string): Promise<Task[]> {
+  const { tasks } = getSchema();
   const rows = await db.select().from(tasks).where(eq(tasks.userId, userId)).orderBy(desc(tasks.createdAt));
   return rows.map(toClientTask);
 }
 
 export async function getTaskById(userId: string, id: string): Promise<Task | null> {
+  const { tasks } = getSchema();
   const [task] = await db
     .select()
     .from(tasks)
@@ -39,6 +41,7 @@ export async function getTaskById(userId: string, id: string): Promise<Task | nu
 }
 
 export async function createTask(userId: string, input: CreateTaskInput): Promise<Task> {
+  const { tasks } = getSchema();
   const now = new Date().toISOString();
   const created: TaskRow = {
     id: crypto.randomUUID(),
@@ -57,6 +60,7 @@ export async function createTask(userId: string, input: CreateTaskInput): Promis
 }
 
 export async function updateTask(userId: string, id: string, changes: Partial<Task>) {
+  const { tasks } = getSchema();
   const { subtasks, ...rest } = changes;
   const dbChanges: Record<string, unknown> = { ...rest, updatedAt: new Date().toISOString() };
   if (subtasks !== undefined) {
@@ -71,6 +75,7 @@ export async function updateTask(userId: string, id: string, changes: Partial<Ta
 }
 
 export async function deleteTask(userId: string, id: string) {
+  const { tasks } = getSchema();
   await db.delete(tasks).where(and(eq(tasks.userId, userId), eq(tasks.id, id)));
 }
 
@@ -81,11 +86,13 @@ export async function toggleTask(userId: string, id: string) {
 }
 
 export async function countTasks(userId: string): Promise<number> {
+  const { tasks } = getSchema();
   const [row] = await db.select({ value: count() }).from(tasks).where(eq(tasks.userId, userId));
   return row?.value ?? 0;
 }
 
 export async function countCompletedTasks(userId: string): Promise<number> {
+  const { tasks } = getSchema();
   const [row] = await db
     .select({ value: count() })
     .from(tasks)

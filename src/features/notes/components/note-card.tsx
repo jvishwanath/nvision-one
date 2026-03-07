@@ -29,10 +29,10 @@ export function NoteCard({ note, onDelete, onEdit, onTogglePin }: NoteCardProps)
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                         {note.pinned && <Pin className="h-3 w-3 text-primary shrink-0 rotate-45" />}
-                        <h4 className="text-sm font-semibold truncate">{note.title}</h4>
+                        <h4 className="text-xl font-semibold truncate">{note.title}</h4>
                     </div>
                     {note.content && (
-                        <div className="mt-1 line-clamp-3 text-muted-foreground text-xs">
+                        <div className="mt-1 line-clamp-3 text-muted-foreground text-base">
                             {renderMarkdown(note.content)}
                         </div>
                     )}

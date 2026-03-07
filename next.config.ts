@@ -14,6 +14,26 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   turbopack: {},
   output: "standalone",
+  serverExternalPackages: [
+    "better-sqlite3",
+    "yahoo-finance2",
+    "@deno/shim-deno",
+    "fetch-mock-cache",
+    "tough-cookie",
+    "tough-cookie-file-store",
+  ],
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externals = config.externals || [];
+      config.externals.push(
+        "yahoo-finance2",
+        "@deno/shim-deno",
+        "@deno/shim-deno-test",
+        "fetch-mock-cache",
+      );
+    }
+    return config;
+  },
 };
 
 export default withPWA(nextConfig);

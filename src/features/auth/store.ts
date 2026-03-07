@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { authService } from "@/lib/services";
+import { authService } from "@/lib/services/auth.service";
 import { logger } from "@/lib/logger";
 
 type AuthUser = { userId: string; email: string };
