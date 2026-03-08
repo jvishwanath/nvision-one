@@ -7,6 +7,7 @@ import {
     decryptNoteFields,
     decryptArray,
 } from "@/lib/crypto/entity-crypto";
+import { useKeyStore } from "@/features/auth/key-store";
 
 interface NoteState {
     notes: Note[];
@@ -17,7 +18,6 @@ interface NoteState {
     addNote: (input: CreateNoteInput) => Promise<void>;
     updateNote: (id: string, changes: Partial<Note>) => Promise<void>;
     deleteNote: (id: string) => Promise<void>;
-    togglePin: (id: string) => Promise<void>;
     setSearchQuery: (query: string) => void;
     setSelectedTag: (tag: string | null) => void;
     searchNotes: (query: string) => Promise<void>;
@@ -30,14 +30,20 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     selectedTag: null,
 
     loadNotes: async () => {
-        set({ loading: true });
+        set({ loading: true, notes: [] }); // Clear notes immediately
         try {
+            // Wait for master key to be ready
+            const keyStore = useKeyStore.getState();
+            if (!keyStore.ready) {
+                await keyStore.initializeKey();
+            }
+            
             const raw = await noteRepository.getAll();
             const notes = await decryptArray(raw, decryptNoteFields);
             set({ notes, loading: false });
         } catch (err) {
             logger.error("Failed to load notes", err);
-            set({ loading: false });
+            set({ loading: false, notes: [] }); // Ensure notes are cleared on error
         }
     },
 
@@ -72,17 +78,6 @@ export const useNoteStore = create<NoteState>((set, get) => ({
             await get().loadNotes();
         } catch (err) {
             logger.error("Failed to delete note", err);
-        }
-    },
-
-    togglePin: async (id) => {
-        try {
-            const note = get().notes.find((n) => n.id === id);
-            if (!note) return;
-            await noteRepository.update(id, { pinned: !note.pinned });
-            await get().loadNotes();
-        } catch (err) {
-            logger.error("Failed to toggle pin", err);
         }
     },
 

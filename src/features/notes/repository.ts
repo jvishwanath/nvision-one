@@ -16,7 +16,6 @@ const noteLocalRepository = {
         const now = new Date().toISOString();
         const note: Note = {
             ...input,
-            pinned: input.pinned ?? false,
             id: generateId(),
             createdAt: now,
             updatedAt: now,

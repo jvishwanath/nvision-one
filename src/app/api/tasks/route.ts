@@ -6,7 +6,13 @@ export async function GET() {
   try {
     const userId = await requireUserId();
     const tasks = await listTasks(userId);
-    return Response.json(tasks);
+    return Response.json(tasks, {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0",
+      },
+    });
   } catch (error) {
     if (error instanceof Error && error.message === "UNAUTHORIZED") {
       return jsonError("Unauthorized", 401);

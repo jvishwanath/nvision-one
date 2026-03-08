@@ -12,6 +12,12 @@ import { travelRepository } from "@/features/travel/repository";
 import type { Task } from "@/features/tasks/types";
 import type { Note } from "@/features/notes/types";
 import type { Trip } from "@/features/travel/types";
+import {
+    decryptTaskFields,
+    decryptNoteFields,
+    decryptTripFields,
+    decryptArray,
+} from "@/lib/crypto/entity-crypto";
 
 interface SearchResult {
     type: "task" | "note" | "trip";
@@ -30,14 +36,22 @@ export default function SearchPage() {
 
     useEffect(() => {
         (async () => {
-            const [t, n, tr] = await Promise.all([
+            const [rawTasks, rawNotes, rawTrips] = await Promise.all([
                 taskRepository.getAll(),
                 noteRepository.getAll(),
                 travelRepository.getAllTrips(),
             ]);
-            setTasks(t);
-            setNotes(n);
-            setTrips(tr);
+            
+            // Decrypt all data before setting state
+            const [tasks, notes, trips] = await Promise.all([
+                decryptArray(rawTasks, decryptTaskFields),
+                decryptArray(rawNotes, decryptNoteFields),
+                decryptArray(rawTrips, decryptTripFields),
+            ]);
+            
+            setTasks(tasks);
+            setNotes(notes);
+            setTrips(trips);
             setLoaded(true);
         })();
     }, []);

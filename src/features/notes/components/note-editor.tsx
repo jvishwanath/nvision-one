@@ -34,7 +34,6 @@ export function NoteEditor({ open, onClose, onSubmit, initialData }: NoteEditorP
                 .split(",")
                 .map((t) => t.trim())
                 .filter(Boolean),
-            pinned: initialData?.pinned ?? false,
         });
         setTitle("");
         setContent("");

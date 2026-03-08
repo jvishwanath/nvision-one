@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { UserCircle2, LogOut, Settings } from "lucide-react";
+import { UserCircle2, LogOut, Settings, Search } from "lucide-react";
 import Link from "next/link";
 import { ThemeToggle } from "./theme-toggle";
 import { useAuthStore } from "@/features/auth/store";
@@ -62,6 +62,13 @@ export function TopBar({ title }: TopBarProps) {
                             ) : null}
                         </div>
                     ) : null}
+                    <Link
+                        href="/search"
+                        className="h-8 w-8 rounded-lg border border-border/60 bg-background/70 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors flex items-center justify-center"
+                        aria-label="Search"
+                    >
+                        <Search className="h-4 w-4" />
+                    </Link>
                     <Link
                         href="/settings"
                         className="h-8 w-8 rounded-lg border border-border/60 bg-background/70 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors flex items-center justify-center"

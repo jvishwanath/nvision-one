@@ -17,7 +17,7 @@ import type { CreateNoteInput, Note } from "../types";
 
 export function NoteList() {
     const searchParams = useSearchParams();
-    const { notes, loading, searchQuery, selectedTag, loadNotes, addNote, updateNote, deleteNote, togglePin, setSearchQuery, setSelectedTag } =
+    const { notes, loading, searchQuery, selectedTag, loadNotes, addNote, updateNote, deleteNote, setSearchQuery, setSelectedTag } =
         useNoteStore();
     const [editorOpen, setEditorOpen] = useState(false);
     const [editingNote, setEditingNote] = useState<Note | null>(null);
@@ -74,11 +74,7 @@ export function NoteList() {
         if (selectedTag) {
             result = result.filter((n) => n.tags.includes(selectedTag));
         }
-        return [...result].sort((a, b) => {
-            if (a.pinned && !b.pinned) return -1;
-            if (!a.pinned && b.pinned) return 1;
-            return 0;
-        });
+        return result;
     }, [notes, searchQuery, selectedTag]);
 
     return (
@@ -138,11 +134,6 @@ export function NoteList() {
                             onEdit={(selectedNote) => {
                                 setEditingNote(selectedNote);
                                 setEditorOpen(true);
-                            }}
-                            onTogglePin={(id) => {
-                                const n = notes.find((x) => x.id === id);
-                                togglePin(id);
-                                toast(n?.pinned ? "Note unpinned" : "Note pinned");
                             }}
                         />
                     ))}

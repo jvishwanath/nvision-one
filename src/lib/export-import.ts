@@ -132,7 +132,7 @@ export function downloadAllJson(bundle: ExportBundle) {
   downloadJson(bundle, `lifeos-export-${Date.now()}.json`);
 }
 
-export async function importNotes(notes: Array<{ title: string; content: string; tags: string[]; pinned?: boolean }>) {
+export async function importNotes(notes: Array<{ title: string; content: string; tags: string[] }>) {
   for (const note of notes) {
     const encrypted = await encryptNoteFields(note);
     await apiClient("/api/notes", {

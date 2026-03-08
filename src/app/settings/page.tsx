@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { Download, Upload, FileJson, FileSpreadsheet, ArrowLeft, Shield } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Download, Upload, FileJson, FileSpreadsheet, ArrowLeft, Shield, Bell } from "lucide-react";
+import { isNotificationSupported, getNotificationPermission, requestNotificationPermission } from "@/lib/notifications";
 import Link from "next/link";
 import { useKeyStore } from "@/features/auth/key-store";
 import {
@@ -25,10 +26,20 @@ type ImportStatus = "idle" | "loading" | "done" | "error";
 
 export default function SettingsPage() {
   const { masterKey } = useKeyStore();
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission | null>(null);
   const [exportStatus, setExportStatus] = useState<ExportStatus>("idle");
   const [importStatus, setImportStatus] = useState<ImportStatus>("idle");
   const [importMessage, setImportMessage] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setNotifPermission(getNotificationPermission());
+  }, []);
+
+  async function handleEnableNotifications() {
+    const granted = await requestNotificationPermission();
+    setNotifPermission(granted ? "granted" : "denied");
+  }
 
   async function handleExportAll() {
     setExportStatus("loading");
@@ -165,6 +176,46 @@ export default function SettingsPage() {
         </Link>
         <h1 className="text-2xl font-bold">Settings</h1>
       </div>
+
+      {/* Notifications */}
+      {isNotificationSupported() && (
+        <section className="rounded-2xl border bg-card p-4 space-y-2">
+          <div className="flex items-center gap-2">
+            <Bell className="h-4 w-4 text-primary" />
+            <h2 className="font-semibold">Notifications</h2>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Get notified about tasks due today, overdue tasks, and upcoming trips.
+          </p>
+          <div className="flex items-center justify-between">
+            <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${
+              notifPermission === "granted"
+                ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                : notifPermission === "denied"
+                  ? "bg-red-500/10 text-red-500"
+                  : "bg-yellow-500/10 text-yellow-600 dark:text-yellow-400"
+            }`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${
+                notifPermission === "granted" ? "bg-green-500" : notifPermission === "denied" ? "bg-red-500" : "bg-yellow-500"
+              }`} />
+              {notifPermission === "granted" ? "Enabled" : notifPermission === "denied" ? "Blocked" : "Not set"}
+            </div>
+            {notifPermission !== "granted" && notifPermission !== "denied" && (
+              <button
+                onClick={handleEnableNotifications}
+                className="px-3 py-1.5 rounded-lg border text-sm hover:bg-accent transition-colors"
+              >
+                Enable
+              </button>
+            )}
+          </div>
+          {notifPermission === "denied" && (
+            <p className="text-xs text-muted-foreground">
+              Notifications are blocked. Please enable them in your browser settings.
+            </p>
+          )}
+        </section>
+      )}
 
       {/* Encryption Status */}
       <section className="rounded-2xl border bg-card p-4 space-y-2">

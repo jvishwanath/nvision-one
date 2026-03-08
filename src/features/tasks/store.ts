@@ -1,12 +1,9 @@
 import { create } from "zustand";
 import type { Task, CreateTaskInput } from "./types";
 import { taskRepository } from "./repository";
+import { encryptTaskFields, decryptTaskFields, decryptArray } from "@/lib/crypto/entity-crypto";
 import { logger } from "@/lib/logger";
-import {
-    encryptTaskFields,
-    decryptTaskFields,
-    decryptArray,
-} from "@/lib/crypto/entity-crypto";
+import { useKeyStore } from "@/features/auth/key-store";
 
 type TaskSortMode = "created" | "dueDate" | "priority";
 
@@ -37,14 +34,20 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     sortMode: "created" as TaskSortMode,
 
     loadTasks: async () => {
-        set({ loading: true });
+        set({ loading: true, tasks: [] }); // Clear tasks immediately
         try {
+            // Wait for master key to be ready
+            const keyStore = useKeyStore.getState();
+            if (!keyStore.ready) {
+                await keyStore.initializeKey();
+            }
+            
             const raw = await taskRepository.getAll();
             const tasks = await decryptArray(raw, decryptTaskFields);
             set({ tasks, loading: false });
         } catch (err) {
             logger.error("Failed to load tasks", err);
-            set({ loading: false });
+            set({ loading: false, tasks: [] }); // Ensure tasks are cleared on error
         }
     },
 

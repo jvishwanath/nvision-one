@@ -3,6 +3,9 @@ export async function apiClient<T>(input: string, init?: RequestInit): Promise<T
     ...init,
     headers: {
       "Content-Type": "application/json",
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+      "Pragma": "no-cache",
+      "Expires": "0",
       ...(init?.headers ?? {}),
     },
     credentials: "include",

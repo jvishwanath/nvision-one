@@ -6,7 +6,13 @@ export async function GET() {
   try {
     const userId = await requireUserId();
     const trips = await listTrips(userId);
-    return Response.json(trips);
+    return Response.json(trips, {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0",
+      },
+    });
   } catch (error) {
     if (error instanceof Error && error.message === "UNAUTHORIZED") return jsonError("Unauthorized", 401);
     return jsonError("Failed to load trips", 500, error);

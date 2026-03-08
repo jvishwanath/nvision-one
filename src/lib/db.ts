@@ -19,7 +19,6 @@ export interface NoteRecord {
     title: string;
     content: string;
     tags: string[];
-    pinned: boolean;
     createdAt: string;
     updatedAt: string;
 }
@@ -32,9 +31,9 @@ class LifeOSDB extends Dexie {
     constructor() {
         super("LifeOSDB");
 
-        this.version(5).stores({
+        this.version(6).stores({
             tasks: "id, priority, completed, dueDate, createdAt, [priority+completed], [priority+dueDate]",
-            notes: "id, *tags, pinned, createdAt",
+            notes: "id, *tags, createdAt",
             trades: null,
             watchlist: null,
             trips: null,

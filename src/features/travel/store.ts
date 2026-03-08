@@ -9,6 +9,7 @@ import {
     decryptItineraryFields,
     decryptArray,
 } from "@/lib/crypto/entity-crypto";
+import { useKeyStore } from "@/features/auth/key-store";
 
 interface TravelState {
     trips: Trip[];
@@ -32,15 +33,20 @@ export const useTravelStore = create<TravelState>((set, get) => ({
     loading: false,
 
     loadTrips: async () => {
-        set({ loading: true });
+        set({ loading: true, trips: [] }); // Clear trips immediately
         try {
+            // Wait for master key to be ready
+            const keyStore = useKeyStore.getState();
+            if (!keyStore.ready) {
+                await keyStore.initializeKey();
+            }
+            
             const raw = await travelRepository.getAllTrips();
             const trips = await decryptArray(raw, decryptTripFields);
-            set({ trips });
+            set({ trips, loading: false });
         } catch (err) {
             logger.error("Failed to load trips", err);
-        } finally {
-            set({ loading: false });
+            set({ loading: false, trips: [] }); // Ensure trips are cleared on error
         }
     },
 

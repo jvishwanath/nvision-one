@@ -6,7 +6,13 @@ export async function GET() {
   try {
     const userId = await requireUserId();
     const notes = await listNotes(userId);
-    return Response.json(notes);
+    return Response.json(notes, {
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0",
+      },
+    });
   } catch (error) {
     if (error instanceof Error && error.message === "UNAUTHORIZED") return jsonError("Unauthorized", 401);
     return jsonError("Failed to load notes", 500, error);

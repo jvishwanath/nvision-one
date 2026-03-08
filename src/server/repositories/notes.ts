@@ -9,11 +9,10 @@ async function getTagsByNoteId(noteId: string): Promise<string[]> {
   return rows.map((row: { tag: string }) => row.tag);
 }
 
-async function withTags(items: Array<Omit<Note, "tags" | "pinned">>): Promise<Note[]> {
+async function withTags(items: Array<Omit<Note, "tags">>): Promise<Note[]> {
   return Promise.all(
     items.map(async (item) => ({
       ...item,
-      pinned: false,
       tags: await getTagsByNoteId(item.id),
     }))
   );
@@ -33,7 +32,7 @@ export async function getNoteById(userId: string, id: string): Promise<Note | nu
     .where(and(eq(notes.userId, userId), eq(notes.id, id)))
     .limit(1);
   if (!note) return null;
-  return { ...note, tags: await getTagsByNoteId(note.id) };
+  return { ...note, tags: await getTagsByNoteId(note.id) } as Note;
 }
 
 export async function createNote(userId: string, input: CreateNoteInput): Promise<Note> {
@@ -53,7 +52,7 @@ export async function createNote(userId: string, input: CreateNoteInput): Promis
     await db.insert(notesTags).values(input.tags.map((tag) => ({ noteId: created.id, tag })));
   }
 
-  return { ...created, pinned: input.pinned ?? false, tags: input.tags };
+  return { ...created, tags: input.tags };
 }
 
 export async function updateNote(userId: string, id: string, changes: Partial<Note>): Promise<Note | null> {
@@ -122,7 +121,6 @@ export async function listSharedNotes(userId: string): Promise<Array<Note & { _s
       id: r.id,
       title: r.title,
       content: r.content,
-      pinned: false,
       tags: await getTagsByNoteId(r.id),
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
@@ -150,5 +148,5 @@ export async function getNoteByIdShared(userId: string, id: string): Promise<Not
     .where(and(eq(shares.sharedWith, userId), eq(shares.itemType, "note"), eq(notes.id, id)))
     .limit(1);
   if (!shared) return null;
-  return { ...shared, pinned: false, tags: await getTagsByNoteId(shared.id) };
+  return { ...shared, tags: await getTagsByNoteId(shared.id) } as Note;
 }
