@@ -2,38 +2,22 @@
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { apiClient } from "@/lib/api-client";
 import { useAuthStore } from "@/features/auth/store";
 
 export default function RegisterPage() {
-  const router = useRouter();
-  const { login } = useAuthStore();
+  const { register, login, loading, error } = useAuthStore();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setLoading(true);
-    setError(null);
-    try {
-      await apiClient("/api/auth/register", {
-        method: "POST",
-        body: JSON.stringify({ name: name.trim(), email: email.trim(), password }),
-      });
-      const ok = await login(email.trim(), password);
-      if (ok) {
+    const ok = await register(email.trim(), password, name.trim());
+    if (ok) {
+      const loggedIn = await login(email.trim(), password);
+      if (loggedIn) {
         window.location.replace("/");
-      } else {
-        router.replace("/login");
       }
-    } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Registration failed");
-    } finally {
-      setLoading(false);
     }
   }
 

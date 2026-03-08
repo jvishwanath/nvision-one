@@ -100,3 +100,34 @@ export async function deleteItineraryItem(userId: string, id: string): Promise<v
   if (!item || !(await ownsTrip(userId, item.tripId))) return;
   await db.delete(itineraryItems).where(eq(itineraryItems.id, id));
 }
+
+export async function listSharedTrips(userId: string): Promise<Array<Trip & { _shared: true; _permission: string; _ownerEmail: string }>> {
+  const { shares, trips, users } = getSchema();
+  const rows = await db
+    .select({
+      id: trips.id,
+      name: trips.name,
+      destination: trips.destination,
+      startDate: trips.startDate,
+      endDate: trips.endDate,
+      createdAt: trips.createdAt,
+      permission: shares.permission,
+      ownerEmail: users.email,
+    })
+    .from(shares)
+    .innerJoin(trips, eq(shares.itemId, trips.id))
+    .innerJoin(users, eq(shares.ownerId, users.id))
+    .where(and(eq(shares.sharedWith, userId), eq(shares.itemType, "trip")));
+
+  return rows.map((r: typeof rows[number]) => ({
+    id: r.id,
+    name: r.name,
+    destination: r.destination,
+    startDate: r.startDate,
+    endDate: r.endDate,
+    createdAt: r.createdAt,
+    _shared: true as const,
+    _permission: r.permission,
+    _ownerEmail: r.ownerEmail,
+  }));
+}

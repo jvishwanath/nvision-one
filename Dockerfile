@@ -1,6 +1,11 @@
 FROM node:20-bookworm-slim AS builder
 WORKDIR /app
 
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+
 RUN apt-get update \
   && apt-get install -y --no-install-recommends python3 make g++ ca-certificates \
   && update-ca-certificates \
@@ -16,6 +21,8 @@ RUN npm config set strict-ssl false \
 COPY . .
 RUN npm run db:generate \
   && npm run db:generate:pg
+RUN echo "NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}" > .env.production \
+  && echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}" >> .env.production
 RUN npm run build
 
 FROM node:20-bookworm-slim AS runner
@@ -26,6 +33,7 @@ ENV PORT=3000
 
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/.env.production ./.env.production
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/src/server/db/migrations ./src/server/db/migrations
 COPY --from=builder /app/src/server/db/migrations-pg ./src/server/db/migrations-pg

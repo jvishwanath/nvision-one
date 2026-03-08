@@ -98,3 +98,57 @@ export async function countNotes(userId: string): Promise<number> {
   const [row] = await db.select({ value: count() }).from(notes).where(eq(notes.userId, userId));
   return row?.value ?? 0;
 }
+
+export async function listSharedNotes(userId: string): Promise<Array<Note & { _shared: true; _permission: string; _ownerEmail: string }>> {
+  const { shares, notes, users } = getSchema();
+  const rows = await db
+    .select({
+      id: notes.id,
+      userId: notes.userId,
+      title: notes.title,
+      content: notes.content,
+      createdAt: notes.createdAt,
+      updatedAt: notes.updatedAt,
+      permission: shares.permission,
+      ownerEmail: users.email,
+    })
+    .from(shares)
+    .innerJoin(notes, eq(shares.itemId, notes.id))
+    .innerJoin(users, eq(shares.ownerId, users.id))
+    .where(and(eq(shares.sharedWith, userId), eq(shares.itemType, "note")));
+
+  const results = await Promise.all(
+    rows.map(async (r: typeof rows[number]) => ({
+      id: r.id,
+      title: r.title,
+      content: r.content,
+      pinned: false,
+      tags: await getTagsByNoteId(r.id),
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+      _shared: true as const,
+      _permission: r.permission,
+      _ownerEmail: r.ownerEmail,
+    })),
+  );
+  return results;
+}
+
+export async function getNoteByIdShared(userId: string, id: string): Promise<Note | null> {
+  const { notes, shares } = getSchema();
+  const [own] = await db
+    .select()
+    .from(notes)
+    .where(and(eq(notes.userId, userId), eq(notes.id, id)))
+    .limit(1);
+  if (own) return { ...own, tags: await getTagsByNoteId(own.id) };
+
+  const [shared] = await db
+    .select({ id: notes.id, userId: notes.userId, title: notes.title, content: notes.content, createdAt: notes.createdAt, updatedAt: notes.updatedAt })
+    .from(shares)
+    .innerJoin(notes, eq(shares.itemId, notes.id))
+    .where(and(eq(shares.sharedWith, userId), eq(shares.itemType, "note"), eq(notes.id, id)))
+    .limit(1);
+  if (!shared) return null;
+  return { ...shared, pinned: false, tags: await getTagsByNoteId(shared.id) };
+}

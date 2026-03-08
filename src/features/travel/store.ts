@@ -2,6 +2,13 @@ import { create } from "zustand";
 import type { Trip, CreateTripInput, ItineraryItem, CreateItineraryItemInput } from "./types";
 import { travelRepository } from "./repository";
 import { logger } from "@/lib/logger";
+import {
+    encryptTripFields,
+    decryptTripFields,
+    encryptItineraryFields,
+    decryptItineraryFields,
+    decryptArray,
+} from "@/lib/crypto/entity-crypto";
 
 interface TravelState {
     trips: Trip[];
@@ -27,7 +34,8 @@ export const useTravelStore = create<TravelState>((set, get) => ({
     loadTrips: async () => {
         set({ loading: true });
         try {
-            const trips = await travelRepository.getAllTrips();
+            const raw = await travelRepository.getAllTrips();
+            const trips = await decryptArray(raw, decryptTripFields);
             set({ trips });
         } catch (err) {
             logger.error("Failed to load trips", err);
@@ -37,15 +45,26 @@ export const useTravelStore = create<TravelState>((set, get) => ({
     },
 
     addTrip: async (input) => {
-        await travelRepository.createTrip(input);
-        await get().loadTrips();
+        try {
+            const encrypted = await encryptTripFields(input);
+            await travelRepository.createTrip(encrypted);
+            await get().loadTrips();
+        } catch (err) {
+            logger.error("Failed to add trip", err);
+            throw err;
+        }
     },
 
     updateTrip: async (id, changes) => {
-        await travelRepository.updateTrip(id, changes);
+        const toEncrypt = { name: "", destination: "", ...changes };
+        const encrypted = await encryptTripFields(toEncrypt);
+        const finalChanges: Partial<Trip> = { ...changes };
+        if (changes.name !== undefined) finalChanges.name = encrypted.name;
+        if (changes.destination !== undefined) finalChanges.destination = encrypted.destination;
+        await travelRepository.updateTrip(id, finalChanges);
         if (get().selectedTrip?.id === id) {
             const refreshed = await travelRepository.getTripById(id);
-            set({ selectedTrip: refreshed ?? null });
+            set({ selectedTrip: refreshed ? await decryptTripFields(refreshed) : null });
         }
         await get().loadTrips();
     },
@@ -62,7 +81,8 @@ export const useTravelStore = create<TravelState>((set, get) => ({
         set({ selectedTrip: trip, itinerary: [] });
         if (!trip) return;
         try {
-            const itinerary = await travelRepository.getItineraryByTrip(trip.id);
+            const raw = await travelRepository.getItineraryByTrip(trip.id);
+            const itinerary = await decryptArray(raw, decryptItineraryFields);
             set({ itinerary });
         } catch (err) {
             logger.error("Failed to load itinerary", err);
@@ -70,14 +90,22 @@ export const useTravelStore = create<TravelState>((set, get) => ({
     },
 
     addItineraryItem: async (input) => {
-        const created = await travelRepository.addItineraryItem(input);
-        set((s) => ({ itinerary: [...s.itinerary, created].sort((a, b) => a.date.localeCompare(b.date)) }));
+        const encrypted = await encryptItineraryFields(input);
+        const created = await travelRepository.addItineraryItem(encrypted);
+        const decrypted = await decryptItineraryFields(created);
+        set((s) => ({ itinerary: [...s.itinerary, decrypted].sort((a, b) => a.date.localeCompare(b.date)) }));
     },
 
     updateItineraryItem: async (id, changes) => {
-        const updated = await travelRepository.updateItineraryItem(id, changes);
+        const toEncrypt = { activity: "", notes: "", ...changes };
+        const encrypted = await encryptItineraryFields(toEncrypt);
+        const finalChanges: Partial<ItineraryItem> = { ...changes };
+        if (changes.activity !== undefined) finalChanges.activity = encrypted.activity;
+        if (changes.notes !== undefined) finalChanges.notes = encrypted.notes;
+        const updated = await travelRepository.updateItineraryItem(id, finalChanges);
         if (!updated) throw new Error("Item not found");
-        set((s) => ({ itinerary: s.itinerary.map((i) => (i.id === id ? updated : i)).sort((a, b) => a.date.localeCompare(b.date)) }));
+        const decrypted = await decryptItineraryFields(updated);
+        set((s) => ({ itinerary: s.itinerary.map((i) => (i.id === id ? decrypted : i)).sort((a, b) => a.date.localeCompare(b.date)) }));
     },
 
     deleteItineraryItem: async (id) => {

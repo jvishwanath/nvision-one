@@ -1,4 +1,4 @@
-import { auth } from "@/server/auth";
+import { createClient } from "@/lib/supabase/server";
 
 export type ApiErrorShape = {
   error: string;
@@ -10,10 +10,10 @@ export function jsonError(error: string, status: number, details?: unknown) {
 }
 
 export async function requireUserId() {
-  const session = await auth();
-  const userId = session?.user?.id;
-  if (!userId) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user?.id) {
     throw new Error("UNAUTHORIZED");
   }
-  return userId;
+  return user.id;
 }

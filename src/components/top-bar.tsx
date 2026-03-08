@@ -1,17 +1,18 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { signOut, useSession } from "next-auth/react";
-import { UserCircle2, LogOut } from "lucide-react";
+import { UserCircle2, LogOut, Settings } from "lucide-react";
+import Link from "next/link";
 import { ThemeToggle } from "./theme-toggle";
+import { useAuthStore } from "@/features/auth/store";
 
 interface TopBarProps {
     title: string;
 }
 
 export function TopBar({ title }: TopBarProps) {
-    const { data: session } = useSession();
-    const email = session?.user?.email;
+    const { user, logout } = useAuthStore();
+    const email = user?.email;
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -51,7 +52,7 @@ export function TopBar({ title }: TopBarProps) {
                                     </p>
                                     <button
                                         type="button"
-                                        onClick={async () => { await signOut({ redirect: false }); window.location.href = "/login"; }}
+                                        onClick={async () => { await logout(); window.location.href = "/login"; }}
                                         className="w-full mt-1 px-2 py-1.5 rounded-md text-xs flex items-center gap-1.5 text-left hover:bg-accent"
                                     >
                                         <LogOut className="h-3.5 w-3.5" />
@@ -61,6 +62,13 @@ export function TopBar({ title }: TopBarProps) {
                             ) : null}
                         </div>
                     ) : null}
+                    <Link
+                        href="/settings"
+                        className="h-8 w-8 rounded-lg border border-border/60 bg-background/70 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors flex items-center justify-center"
+                        aria-label="Settings"
+                    >
+                        <Settings className="h-4 w-4" />
+                    </Link>
                     <ThemeToggle />
                 </div>
             </div>

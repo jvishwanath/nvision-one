@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Plus, MapPin, Calendar, Trash2, ArrowLeft, Clock, Pencil, Ellipsis, Plane } from "lucide-react";
+import { Plus, MapPin, Calendar, Trash2, ArrowLeft, Clock, Pencil, Ellipsis, Plane, Share2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { useTravelStore } from "../store";
 import { TripForm } from "./trip-form";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ShareDialog } from "@/components/share-dialog";
 import { toast } from "@/components/ui/toast";
 import { usePullToRefresh } from "@/hooks/use-pull-to-refresh";
 import { PullIndicator } from "@/components/ui/pull-indicator";
@@ -70,6 +71,7 @@ export function TripList() {
     const [pointerStartX, setPointerStartX] = useState<number | null>(null);
     const [deletingTripId, setDeletingTripId] = useState<string | null>(null);
     const [deletingItineraryId, setDeletingItineraryId] = useState<string | null>(null);
+    const [shareOpen, setShareOpen] = useState(false);
 
     const handlePullRefresh = useCallback(async () => { await loadTrips(); }, [loadTrips]);
     const { pulling, refreshing, pullDistance } = usePullToRefresh({ onRefresh: handlePullRefresh });
@@ -195,16 +197,25 @@ export function TripList() {
                 <Card className="gradient-primary text-white border-0">
                     <div className="flex items-start justify-between gap-2">
                         <h2 className="text-lg font-bold">{selectedTrip.name}</h2>
-                        <button
-                            onClick={() => {
-                                setEditingTrip(selectedTrip);
-                                setFormOpen(true);
-                            }}
-                            className="h-8 w-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
-                            aria-label={`Edit ${selectedTrip.name}`}
-                        >
-                            <Pencil className="h-3.5 w-3.5" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => setShareOpen(true)}
+                                className="h-8 w-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+                                aria-label={`Share ${selectedTrip.name}`}
+                            >
+                                <Share2 className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setEditingTrip(selectedTrip);
+                                    setFormOpen(true);
+                                }}
+                                className="h-8 w-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+                                aria-label={`Edit ${selectedTrip.name}`}
+                            >
+                                <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                        </div>
                     </div>
                     <div className="flex items-center gap-1.5 mt-1 text-white/80 text-xs">
                         <MapPin className="h-3.5 w-3.5" />
@@ -306,6 +317,14 @@ export function TripList() {
                     message="This activity will be removed from the itinerary."
                     onConfirm={handleConfirmDeleteItinerary}
                     onCancel={() => setDeletingItineraryId(null)}
+                />
+
+                <ShareDialog
+                    open={shareOpen}
+                    onClose={() => setShareOpen(false)}
+                    itemType="trip"
+                    itemId={selectedTrip.id}
+                    itemTitle={selectedTrip.name}
                 />
             </div>
         );

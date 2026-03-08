@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, Calendar, ChevronDown } from "lucide-react";
+import { Check, Calendar, ChevronDown, Share2 } from "lucide-react";
 import { DetailSheet } from "@/components/ui/detail-sheet";
+import { ShareDialog } from "@/components/share-dialog";
 import { cn } from "@/lib/utils";
 import { renderMarkdown } from "@/lib/markdown";
 import type { Task } from "../types";
@@ -27,6 +28,7 @@ const priorityVariant: Record<Task["priority"], "default" | "primary" | "success
 export function TaskCard({ task, onToggle, onDelete, onEdit, onToggleSubtask }: TaskCardProps) {
     const [detailOpen, setDetailOpen] = useState(false);
     const [subtasksExpanded, setSubtasksExpanded] = useState(false);
+    const [shareOpen, setShareOpen] = useState(false);
     const isOverdue = !task.completed && !!task.dueDate && task.dueDate < new Date().toISOString().slice(0, 10);
     const subtasks = task.subtasks ?? [];
     const doneCount = subtasks.filter((s) => s.completed).length;
@@ -133,6 +135,16 @@ export function TaskCard({ task, onToggle, onDelete, onEdit, onToggleSubtask }: 
             title={task.title}
             onEdit={() => { setDetailOpen(false); onEdit(task); }}
             onDelete={() => { setDetailOpen(false); onDelete(task.id); }}
+            actions={
+                <button
+                    type="button"
+                    onClick={() => { setDetailOpen(false); setShareOpen(true); }}
+                    className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+                    aria-label="Share task"
+                >
+                    <Share2 className="h-3.5 w-3.5" />
+                </button>
+            }
         >
             <div className="space-y-4">
                 <div className="flex items-center gap-2">
@@ -211,6 +223,14 @@ export function TaskCard({ task, onToggle, onDelete, onEdit, onToggleSubtask }: 
                 </p>
             </div>
         </DetailSheet>
+
+        <ShareDialog
+            open={shareOpen}
+            onClose={() => setShareOpen(false)}
+            itemType="task"
+            itemId={task.id}
+            itemTitle={task.title}
+        />
         </>
     );
 }

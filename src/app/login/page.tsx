@@ -45,9 +45,10 @@ export default function LoginPage() {
         <button className="w-full rounded-lg bg-primary text-primary-foreground py-2 font-medium" disabled={loading}>
           {loading ? "Signing in..." : "Sign in"}
         </button>
-        <p className="text-sm text-muted-foreground">
-          No account? <Link className="underline" href="/register">Create one</Link>
-        </p>
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <p>No account? <Link className="underline" href="/register">Create one</Link></p>
+          <Link className="underline" href="/forgot-password">Forgot password?</Link>
+        </div>
       </form>
     </div>
   );

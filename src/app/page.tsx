@@ -11,10 +11,8 @@ import {
   Plane,
   Plus,
   MapPin,
-  CloudSun,
   CircleAlert,
   CalendarClock,
-  ArrowRight,
 } from "lucide-react";
 import Link from "next/link";
 import { BarChart, Bar, XAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
@@ -24,6 +22,13 @@ import { watchlistRepository } from "@/features/finance/repository";
 import { travelRepository } from "@/features/travel/repository";
 import type { Task } from "@/features/tasks/types";
 import { formatDate } from "@/lib/utils";
+import {
+    decryptTaskFields,
+    decryptNoteFields,
+    decryptTripFields,
+    decryptArray,
+} from "@/lib/crypto/entity-crypto";
+import { useKeyStore } from "@/features/auth/key-store";
 
 function weatherCodeToLabel(code: number): string {
   if (code === 0) return "Clear";
@@ -65,43 +70,41 @@ interface DashboardStats {
   nextTripDestination: string;
 }
 
-function ProgressRing({ percent, size = 52, strokeWidth = 5 }: { percent: number; size?: number; strokeWidth?: number }) {
-  const r = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * r;
-  const offset = circumference - (percent / 100) * circumference;
-  return (
-    <svg width={size} height={size} className="-rotate-90">
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="hsl(var(--muted))" strokeWidth={strokeWidth} />
-      <circle
-        cx={size / 2} cy={size / 2} r={r} fill="none"
-        stroke="hsl(var(--primary))"
-        strokeWidth={strokeWidth}
-        strokeDasharray={circumference}
-        strokeDashoffset={offset}
-        strokeLinecap="round"
-        className="transition-all duration-700 ease-out"
-      />
-    </svg>
-  );
+const STATS_CACHE_KEY = "dashboard_stats";
+const REMINDERS_CACHE_KEY = "dashboard_reminders";
+const TASKS_CACHE_KEY = "dashboard_allTasks";
+
+function readCache<T>(key: string): T | null {
+  try {
+    const raw = sessionStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch { return null; }
 }
 
+function writeCache(key: string, value: unknown) {
+  try { sessionStorage.setItem(key, JSON.stringify(value)); } catch { /* quota */ }
+}
+
+const defaultStats: DashboardStats = {
+  totalTasks: 0,
+  completedTasks: 0,
+  overdueTasks: 0,
+  pendingTasks: 0,
+  totalNotes: 0,
+  recentNoteTitle: "",
+  totalWatching: 0,
+  totalTrips: 0,
+  nextTripName: "",
+  nextTripDays: null,
+  nextTripDestination: "",
+};
+
 export default function DashboardPage() {
-  const [stats, setStats] = useState<DashboardStats>({
-    totalTasks: 0,
-    completedTasks: 0,
-    overdueTasks: 0,
-    pendingTasks: 0,
-    totalNotes: 0,
-    recentNoteTitle: "",
-    totalWatching: 0,
-    totalTrips: 0,
-    nextTripName: "",
-    nextTripDays: null,
-    nextTripDestination: "",
-  });
+  const keyReady = useKeyStore((s) => s.ready);
+  const [stats, setStats] = useState<DashboardStats>(() => readCache<DashboardStats>(STATS_CACHE_KEY) ?? defaultStats);
   const [mounted, setMounted] = useState(false);
-  const [reminders, setReminders] = useState<Task[]>([]);
-  const [allTasks, setAllTasks] = useState<Task[]>([]);
+  const [reminders, setReminders] = useState<Task[]>(() => readCache<Task[]>(REMINDERS_CACHE_KEY) ?? []);
+  const [allTasks, setAllTasks] = useState<Task[]>(() => readCache<Task[]>(TASKS_CACHE_KEY) ?? []);
   const [locationLabel, setLocationLabel] = useState<string | null>(null);
   const [weatherLabel, setWeatherLabel] = useState<string | null>(null);
   const [weatherTemp, setWeatherTemp] = useState<number | null>(null);
@@ -109,13 +112,20 @@ export default function DashboardPage() {
 
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!keyReady) return;
     async function loadStats() {
-      const [allTasks, allNotes, totalWatching, allTrips] = await Promise.all([
+      const [rawTasks, rawNotes, totalWatching, rawTrips] = await Promise.all([
         taskRepository.getAll(),
         noteRepository.getAll(),
         watchlistRepository.count(),
         travelRepository.getAllTrips(),
       ]);
+      const allTasks = await decryptArray(rawTasks, decryptTaskFields);
+      const allNotes = await decryptArray(rawNotes, decryptNoteFields);
+      const allTrips = await decryptArray(rawTrips, decryptTripFields);
       const totalTasks = allTasks.length;
       const completedTasks = allTasks.filter((t) => t.completed).length;
       const totalNotes = allNotes.length;
@@ -158,12 +168,16 @@ export default function DashboardPage() {
         .sort((a, b) => new Date(a.dueDate ?? 0).getTime() - new Date(b.dueDate ?? 0).getTime())
         .slice(0, 5);
 
-      setStats({ totalTasks, completedTasks, overdueTasks, pendingTasks, totalNotes, recentNoteTitle, totalWatching, totalTrips, nextTripName, nextTripDays, nextTripDestination });
+      const newStats = { totalTasks, completedTasks, overdueTasks, pendingTasks, totalNotes, recentNoteTitle, totalWatching, totalTrips, nextTripName, nextTripDays, nextTripDestination };
+      setStats(newStats);
       setReminders(upcoming);
       setAllTasks(allTasks);
+      writeCache(STATS_CACHE_KEY, newStats);
+      writeCache(REMINDERS_CACHE_KEY, upcoming);
+      writeCache(TASKS_CACHE_KEY, allTasks);
     }
     loadStats();
-  }, []);
+  }, [keyReady]);
 
   useEffect(() => {
     async function fetchLocationAndWeather() {
@@ -231,8 +245,6 @@ export default function DashboardPage() {
 
   if (!mounted) return null;
 
-  const taskPercent = stats.totalTasks > 0 ? Math.round((stats.completedTasks / stats.totalTasks) * 100) : 0;
-
   const quickActions = [
     { label: "Task", href: "/tasks?create=true", icon: CheckSquare, color: "text-violet-500 bg-violet-500/10" },
     { label: "Note", href: "/notes?create=true", icon: StickyNote, color: "text-blue-500 bg-blue-500/10" },
@@ -266,51 +278,25 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ── Task Progress + Overdue Banner ──── */}
-        <div className="animate-fade-in" style={{ animationDelay: "60ms" }}>
+        {/* ── Feature Cards Grid ─────────────── */}
+        <div className="grid grid-cols-4 gap-2.5 animate-fade-in" style={{ animationDelay: "60ms" }}>
           <Link href="/tasks">
-            <Card className="p-0 overflow-hidden border-0 shadow-md">
-              <div className="flex items-center gap-4 p-4">
-                <div className="relative shrink-0">
-                  <ProgressRing percent={taskPercent} />
-                  <span className="absolute inset-0 flex items-center justify-center text-xs font-bold">
-                    {taskPercent}%
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xl font-semibold">Tasks</p>
-                  <p className="text-sm text-muted-foreground mt-0.5">
-                    {stats.completedTasks} of {stats.totalTasks} completed
-                  </p>
-                  {stats.pendingTasks > 0 && (
-                    <p className="text-[11px] text-muted-foreground/70 mt-0.5">
-                      {stats.pendingTasks} remaining
-                    </p>
-                  )}
-                </div>
-                <ArrowRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+            <Card className="text-center p-3 border-0 shadow-md hover:shadow-lg transition-shadow">
+              <div className="h-10 w-10 rounded-xl bg-violet-500/10 flex items-center justify-center mx-auto mb-2 relative">
+                <CheckSquare className="h-4.5 w-4.5 text-violet-500" />
               </div>
-              {stats.overdueTasks > 0 && (
-                <div className="flex items-center gap-2 px-4 py-2 bg-rose-500/10 border-t border-rose-500/20">
-                  <CircleAlert className="h-3.5 w-3.5 text-rose-500 shrink-0" />
-                  <p className="text-[11px] font-medium text-rose-500">
-                    {stats.overdueTasks} overdue {stats.overdueTasks === 1 ? "task" : "tasks"}
-                  </p>
-                </div>
-              )}
+              <p className="text-2xl font-bold tracking-tight">{stats.totalTasks}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Tasks</p>
             </Card>
           </Link>
-        </div>
 
-        {/* ── Feature Cards Row ─────────────── */}
-        <div className="grid grid-cols-3 gap-2.5 animate-fade-in" style={{ animationDelay: "120ms" }}>
           <Link href="/notes">
             <Card className="text-center p-3 border-0 shadow-md hover:shadow-lg transition-shadow">
               <div className="h-10 w-10 rounded-xl bg-blue-500/10 flex items-center justify-center mx-auto mb-2">
                 <StickyNote className="h-4.5 w-4.5 text-blue-500" />
               </div>
               <p className="text-2xl font-bold tracking-tight">{stats.totalNotes}</p>
-              <p className="text-sm text-muted-foreground uppercase tracking-wider">Notes</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Notes</p>
             </Card>
           </Link>
 
@@ -320,7 +306,7 @@ export default function DashboardPage() {
                 <TrendingUp className="h-4.5 w-4.5 text-emerald-500" />
               </div>
               <p className="text-2xl font-bold tracking-tight">{stats.totalWatching}</p>
-              <p className="text-sm text-muted-foreground uppercase tracking-wider">Stocks</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Stocks</p>
             </Card>
           </Link>
 
@@ -330,42 +316,27 @@ export default function DashboardPage() {
                 <Plane className="h-4.5 w-4.5 text-orange-500" />
               </div>
               <p className="text-2xl font-bold tracking-tight">{stats.totalTrips}</p>
-              <p className="text-sm text-muted-foreground uppercase tracking-wider">Trips</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Trips</p>
             </Card>
           </Link>
         </div>
 
-        {/* ── Upcoming Trip ─────────────────── */}
-        {stats.nextTripDays !== null && (
-          <div className="animate-fade-in" style={{ animationDelay: "180ms" }}>
-            <Link href="/travel">
-              <Card className="relative overflow-hidden border-0 shadow-md bg-gradient-to-r from-orange-500/5 to-amber-500/5 dark:from-orange-500/10 dark:to-amber-500/10">
-                <div className="flex items-center gap-3">
-                  <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shadow-lg shrink-0">
-                    <Plane className="h-5 w-5 text-white" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xl font-semibold truncate">{stats.nextTripName}</p>
-                    {stats.nextTripDestination && (
-                      <p className="text-[11px] text-muted-foreground truncate">{stats.nextTripDestination}</p>
-                    )}
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-lg font-bold text-orange-500">
-                      {stats.nextTripDays === 0 ? "Today!" : `${stats.nextTripDays}d`}
-                    </p>
-                    {stats.nextTripDays > 0 && (
-                      <p className="text-[10px] text-muted-foreground">until trip</p>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            </Link>
-          </div>
+        {/* ── Overdue Banner ──────────────────── */}
+        {stats.overdueTasks > 0 && (
+          <Link href="/tasks" className="animate-fade-in block" style={{ animationDelay: "90ms" }}>
+            <Card className="p-3 border-0 shadow-sm bg-rose-500/5 dark:bg-rose-500/10">
+              <div className="flex items-center gap-2">
+                <CircleAlert className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                <p className="text-[11px] font-medium text-rose-500">
+                  {stats.overdueTasks} overdue {stats.overdueTasks === 1 ? "task" : "tasks"}
+                </p>
+              </div>
+            </Card>
+          </Link>
         )}
 
         {/* ── Quick Actions ─────────────────── */}
-        <div className="animate-fade-in" style={{ animationDelay: "240ms" }}>
+        <div className="animate-fade-in" style={{ animationDelay: "180ms" }}>
           <h3 className="text-base font-semibold text-muted-foreground uppercase tracking-wider mb-2.5">
             Create
           </h3>
@@ -387,6 +358,72 @@ export default function DashboardPage() {
             })}
           </div>
         </div>
+
+        {/* ── Upcoming (Trips + Tasks) ────────── */}
+        {(stats.nextTripDays !== null || reminders.length > 0) && (
+          <div className="animate-fade-in" style={{ animationDelay: "240ms" }}>
+            <div className="flex items-center justify-between mb-2.5">
+              <h3 className="text-base font-semibold text-muted-foreground uppercase tracking-wider">
+                Upcoming
+              </h3>
+              <Link href="/tasks" className="text-[11px] text-primary font-medium hover:underline">
+                View all
+              </Link>
+            </div>
+            <div className="space-y-2">
+              {stats.nextTripDays !== null && (
+                <Link href="/travel">
+                  <Card className="p-3 border-0 shadow-sm bg-gradient-to-r from-orange-500/5 to-amber-500/5 dark:from-orange-500/10 dark:to-amber-500/10">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shrink-0">
+                        <Plane className="h-3.5 w-3.5 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-base font-medium truncate">{stats.nextTripName}</p>
+                        {stats.nextTripDestination && (
+                          <p className="text-[11px] text-muted-foreground truncate mt-0.5">{stats.nextTripDestination}</p>
+                        )}
+                      </div>
+                      <Badge className="text-[9px] shrink-0 bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30" variant="outline">
+                        {stats.nextTripDays === 0 ? "Today!" : `${stats.nextTripDays}d`}
+                      </Badge>
+                    </div>
+                  </Card>
+                </Link>
+              )}
+              {reminders.map((task) => {
+                const isOverdue = !!task.dueDate && task.dueDate < new Date().toISOString().slice(0, 10);
+                return (
+                  <Link key={task.id} href={`/tasks/${task.id}`}>
+                    <Card
+                      className={`p-3 border-0 shadow-sm ${isOverdue ? "ring-1 ring-rose-500/20 bg-rose-500/[0.03]" : ""}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${isOverdue ? "bg-rose-500/10" : "bg-primary/10"}`}>
+                          <CalendarClock className={`h-3.5 w-3.5 ${isOverdue ? "text-rose-500" : "text-primary"}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-base font-medium line-clamp-1">{task.title}</p>
+                          {task.dueDate && (
+                            <p className={`text-[11px] mt-0.5 ${isOverdue ? "text-rose-500 font-medium" : "text-muted-foreground"}`}>
+                              {isOverdue ? "Overdue · " : ""}{formatDate(task.dueDate)}
+                            </p>
+                          )}
+                        </div>
+                        <Badge
+                          className="text-[9px] shrink-0"
+                          variant={isOverdue ? "destructive" : task.priority === "urgent" ? "destructive" : task.priority === "high" ? "warning" : "outline"}
+                        >
+                          {isOverdue ? "overdue" : task.priority}
+                        </Badge>
+                      </div>
+                    </Card>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* ── Weekly Activity ───────────────── */}
         {weeklyData.some((d) => d.count > 0) && (
@@ -429,51 +466,6 @@ export default function DashboardPage() {
                 </BarChart>
               </ResponsiveContainer>
             </Card>
-          </div>
-        )}
-
-        {/* ── Upcoming Tasks / Reminders ────── */}
-        {reminders.length > 0 && (
-          <div className="animate-fade-in" style={{ animationDelay: "360ms" }}>
-            <div className="flex items-center justify-between mb-2.5">
-              <h3 className="text-base font-semibold text-muted-foreground uppercase tracking-wider">
-                Upcoming
-              </h3>
-              <Link href="/tasks" className="text-[11px] text-primary font-medium hover:underline">
-                View all
-              </Link>
-            </div>
-            <div className="space-y-2">
-              {reminders.map((task) => {
-                const isOverdue = !!task.dueDate && task.dueDate < new Date().toISOString().slice(0, 10);
-                return (
-                  <Card
-                    key={task.id}
-                    className={`p-3 border-0 shadow-sm ${isOverdue ? "ring-1 ring-rose-500/20 bg-rose-500/[0.03]" : ""}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${isOverdue ? "bg-rose-500/10" : "bg-primary/10"}`}>
-                        <CalendarClock className={`h-3.5 w-3.5 ${isOverdue ? "text-rose-500" : "text-primary"}`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-base font-medium line-clamp-1">{task.title}</p>
-                        {task.dueDate && (
-                          <p className={`text-[11px] mt-0.5 ${isOverdue ? "text-rose-500 font-medium" : "text-muted-foreground"}`}>
-                            {isOverdue ? "Overdue · " : ""}{formatDate(task.dueDate)}
-                          </p>
-                        )}
-                      </div>
-                      <Badge
-                        className="text-[9px] shrink-0"
-                        variant={isOverdue ? "destructive" : task.priority === "urgent" ? "destructive" : task.priority === "high" ? "warning" : "outline"}
-                      >
-                        {isOverdue ? "overdue" : task.priority}
-                      </Badge>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
           </div>
         )}
 

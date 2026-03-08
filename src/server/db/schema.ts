@@ -11,7 +11,7 @@ import {
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
   email: text("email").notNull(),
-  passwordHash: text("password_hash").notNull(),
+  passwordHash: text("password_hash"),
   name: text("name").notNull(),
   createdAt: text("created_at").notNull(),
 }, (table) => ({
@@ -100,6 +100,43 @@ export const itineraryItems = sqliteTable("itinerary_items", {
   tag: text("tag").notNull(),
 }, (table) => ({
   tripIdx: index("itinerary_items_trip_idx").on(table.tripId),
+}));
+
+export const userKeys = sqliteTable("user_keys", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  wrappedKey: text("wrapped_key").notNull(),
+  salt: text("salt").notNull(),
+  iv: text("iv").notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (table) => ({
+  userIdx: uniqueIndex("user_keys_user_idx").on(table.userId),
+}));
+
+export const userPublicKeys = sqliteTable("user_public_keys", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  publicKey: text("public_key").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (table) => ({
+  userIdx: uniqueIndex("user_public_keys_user_idx").on(table.userId),
+}));
+
+export const shares = sqliteTable("shares", {
+  id: text("id").primaryKey(),
+  itemType: text("item_type").notNull(),
+  itemId: text("item_id").notNull(),
+  ownerId: text("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  sharedWith: text("shared_with").notNull().references(() => users.id, { onDelete: "cascade" }),
+  permission: text("permission").notNull(),
+  sharedKey: text("shared_key"),
+  createdAt: text("created_at").notNull(),
+}, (table) => ({
+  itemIdx: index("shares_item_idx").on(table.itemType, table.itemId),
+  sharedWithIdx: index("shares_shared_with_idx").on(table.sharedWith),
+  ownerIdx: index("shares_owner_idx").on(table.ownerId),
+  uniqueShare: uniqueIndex("shares_unique_idx").on(table.itemType, table.itemId, table.sharedWith),
 }));
 
 export const usersRelations = relations(users, ({ many }) => ({

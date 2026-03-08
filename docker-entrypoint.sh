@@ -39,7 +39,7 @@ sqlite.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id text PRIMARY KEY NOT NULL,
     email text NOT NULL,
-    password_hash text NOT NULL,
+    password_hash text,
     name text NOT NULL,
     created_at text NOT NULL
   );
@@ -121,6 +121,40 @@ sqlite.exec(`
     tag text NOT NULL
   );
   CREATE INDEX IF NOT EXISTS itinerary_items_trip_idx ON itinerary_items (trip_id);
+
+  CREATE TABLE IF NOT EXISTS user_keys (
+    id text PRIMARY KEY NOT NULL,
+    user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    wrapped_key text NOT NULL,
+    salt text NOT NULL,
+    iv text NOT NULL,
+    created_at text NOT NULL,
+    updated_at text NOT NULL
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS user_keys_user_idx ON user_keys (user_id);
+
+  CREATE TABLE IF NOT EXISTS user_public_keys (
+    id text PRIMARY KEY NOT NULL,
+    user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    public_key text NOT NULL,
+    created_at text NOT NULL
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS user_public_keys_user_idx ON user_public_keys (user_id);
+
+  CREATE TABLE IF NOT EXISTS shares (
+    id text PRIMARY KEY NOT NULL,
+    item_type text NOT NULL,
+    item_id text NOT NULL,
+    owner_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    shared_with text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    permission text NOT NULL,
+    shared_key text,
+    created_at text NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS shares_item_idx ON shares (item_type, item_id);
+  CREATE INDEX IF NOT EXISTS shares_shared_with_idx ON shares (shared_with);
+  CREATE INDEX IF NOT EXISTS shares_owner_idx ON shares (owner_id);
+  CREATE UNIQUE INDEX IF NOT EXISTS shares_unique_idx ON shares (item_type, item_id, shared_with);
 `);
 
 sqlite.close();
@@ -147,7 +181,7 @@ async function bootstrapSchema() {
     CREATE TABLE IF NOT EXISTS users (
       id text PRIMARY KEY,
       email text NOT NULL,
-      password_hash text NOT NULL,
+      password_hash text,
       name text NOT NULL,
       created_at text NOT NULL
     );
@@ -229,6 +263,40 @@ async function bootstrapSchema() {
       tag text NOT NULL
     );
     CREATE INDEX IF NOT EXISTS itinerary_items_trip_idx ON itinerary_items (trip_id);
+
+    CREATE TABLE IF NOT EXISTS user_keys (
+      id text PRIMARY KEY,
+      user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      wrapped_key text NOT NULL,
+      salt text NOT NULL,
+      iv text NOT NULL,
+      created_at text NOT NULL,
+      updated_at text NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS user_keys_user_idx ON user_keys (user_id);
+
+    CREATE TABLE IF NOT EXISTS user_public_keys (
+      id text PRIMARY KEY,
+      user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      public_key text NOT NULL,
+      created_at text NOT NULL
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS user_public_keys_user_idx ON user_public_keys (user_id);
+
+    CREATE TABLE IF NOT EXISTS shares (
+      id text PRIMARY KEY,
+      item_type text NOT NULL,
+      item_id text NOT NULL,
+      owner_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      shared_with text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      permission text NOT NULL,
+      shared_key text,
+      created_at text NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS shares_item_idx ON shares (item_type, item_id);
+    CREATE INDEX IF NOT EXISTS shares_shared_with_idx ON shares (shared_with);
+    CREATE INDEX IF NOT EXISTS shares_owner_idx ON shares (owner_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS shares_unique_idx ON shares (item_type, item_id, shared_with);
   `);
 }
 
@@ -268,7 +336,7 @@ async function applyMigrations() {
 }
 
 async function disableRLS() {
-  const tables = ['users', 'tasks', 'notes', 'notes_tags', 'trades', 'watchlist', 'trips', 'itinerary_items'];
+  const tables = ['users', 'tasks', 'notes', 'notes_tags', 'trades', 'watchlist', 'trips', 'itinerary_items', 'user_keys', 'user_public_keys', 'shares'];
   for (const t of tables) {
     await pool.query(`ALTER TABLE IF EXISTS "${t}" DISABLE ROW LEVEL SECURITY`);
   }

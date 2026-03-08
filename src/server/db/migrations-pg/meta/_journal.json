@@ -8,6 +8,13 @@
       "when": 1772912941935,
       "tag": "0000_good_shooting_star",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1772930384365,
+      "tag": "0001_outgoing_maverick",
+      "breakpoints": true
     }
   ]
 }

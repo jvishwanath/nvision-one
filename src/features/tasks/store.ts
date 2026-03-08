@@ -2,6 +2,11 @@ import { create } from "zustand";
 import type { Task, CreateTaskInput } from "./types";
 import { taskRepository } from "./repository";
 import { logger } from "@/lib/logger";
+import {
+    encryptTaskFields,
+    decryptTaskFields,
+    decryptArray,
+} from "@/lib/crypto/entity-crypto";
 
 type TaskSortMode = "created" | "dueDate" | "priority";
 
@@ -34,7 +39,8 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     loadTasks: async () => {
         set({ loading: true });
         try {
-            const tasks = await taskRepository.getAll();
+            const raw = await taskRepository.getAll();
+            const tasks = await decryptArray(raw, decryptTaskFields);
             set({ tasks, loading: false });
         } catch (err) {
             logger.error("Failed to load tasks", err);
@@ -44,18 +50,27 @@ export const useTaskStore = create<TaskState>((set, get) => ({
 
     addTask: async (input) => {
         try {
-            const task = await taskRepository.create(input);
-            set((state) => ({ tasks: [task, ...state.tasks] }));
+            const encrypted = await encryptTaskFields({ ...input, description: input.description ?? "" });
+            const task = await taskRepository.create({ ...input, title: encrypted.title, description: encrypted.description });
+            const decrypted = await decryptTaskFields(task);
+            set((state) => ({ tasks: [decrypted, ...state.tasks] }));
         } catch (err) {
             logger.error("Failed to add task", err);
+            throw err;
         }
     },
 
     updateTask: async (id, changes) => {
         try {
-            const updated = await taskRepository.update(id, changes);
+            const toEncrypt = { title: "", description: "", ...changes };
+            const encrypted = await encryptTaskFields(toEncrypt);
+            const finalChanges: Partial<Task> = { ...changes };
+            if (changes.title !== undefined) finalChanges.title = encrypted.title;
+            if (changes.description !== undefined) finalChanges.description = encrypted.description;
+            const updated = await taskRepository.update(id, finalChanges);
+            const decrypted = await decryptTaskFields(updated);
             set((state) => ({
-                tasks: state.tasks.map((task) => (task.id === id ? updated : task)),
+                tasks: state.tasks.map((task) => (task.id === id ? decrypted : task)),
             }));
         } catch (err) {
             logger.error("Failed to update task", err);

@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Pin } from "lucide-react";
+import { Pin, Share2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DetailSheet } from "@/components/ui/detail-sheet";
+import { ShareDialog } from "@/components/share-dialog";
 import { renderMarkdown } from "@/lib/markdown";
 import type { Note } from "../types";
 
@@ -17,6 +18,7 @@ interface NoteCardProps {
 
 export function NoteCard({ note, onDelete, onEdit, onTogglePin }: NoteCardProps) {
     const [detailOpen, setDetailOpen] = useState(false);
+    const [shareOpen, setShareOpen] = useState(false);
 
     return (
         <>
@@ -75,6 +77,15 @@ export function NoteCard({ note, onDelete, onEdit, onTogglePin }: NoteCardProps)
             onEdit={() => { setDetailOpen(false); onEdit(note); }}
             onDelete={() => { setDetailOpen(false); onDelete(note.id); }}
             actions={
+                <>
+                <button
+                    type="button"
+                    onClick={() => { setDetailOpen(false); setShareOpen(true); }}
+                    className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+                    aria-label="Share note"
+                >
+                    <Share2 className="h-3.5 w-3.5" />
+                </button>
                 <button
                     type="button"
                     onClick={() => onTogglePin(note.id)}
@@ -83,6 +94,7 @@ export function NoteCard({ note, onDelete, onEdit, onTogglePin }: NoteCardProps)
                 >
                     <Pin className="h-3.5 w-3.5" />
                 </button>
+                </>
             }
         >
             <div className="space-y-4">
@@ -117,6 +129,14 @@ export function NoteCard({ note, onDelete, onEdit, onTogglePin }: NoteCardProps)
                 </div>
             </div>
         </DetailSheet>
+
+        <ShareDialog
+            open={shareOpen}
+            onClose={() => setShareOpen(false)}
+            itemType="note"
+            itemId={note.id}
+            itemTitle={note.title}
+        />
         </>
     );
 }

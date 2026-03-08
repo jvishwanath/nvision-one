@@ -5,14 +5,19 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}
     ports:
       - "3000:3000"
     environment:
       NODE_ENV: production
-      AUTH_SECRET: ${AUTH_SECRET}
       DB_DRIVER: sqlite
       DATABASE_URL: /app/data/lifeos.db
       NEXT_PUBLIC_PERSISTENCE: server
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}
+      ENCRYPTION_SECRET: ${ENCRYPTION_SECRET}
     volumes:
       - ./data:/app/data
     restart: unless-stopped

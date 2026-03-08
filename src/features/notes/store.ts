@@ -2,6 +2,11 @@ import { create } from "zustand";
 import type { Note, CreateNoteInput } from "./types";
 import { noteRepository } from "./repository";
 import { logger } from "@/lib/logger";
+import {
+    encryptNoteFields,
+    decryptNoteFields,
+    decryptArray,
+} from "@/lib/crypto/entity-crypto";
 
 interface NoteState {
     notes: Note[];
@@ -27,7 +32,8 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     loadNotes: async () => {
         set({ loading: true });
         try {
-            const notes = await noteRepository.getAll();
+            const raw = await noteRepository.getAll();
+            const notes = await decryptArray(raw, decryptNoteFields);
             set({ notes, loading: false });
         } catch (err) {
             logger.error("Failed to load notes", err);
@@ -37,16 +43,23 @@ export const useNoteStore = create<NoteState>((set, get) => ({
 
     addNote: async (input) => {
         try {
-            await noteRepository.create(input);
+            const encrypted = await encryptNoteFields(input);
+            await noteRepository.create(encrypted);
             await get().loadNotes();
         } catch (err) {
             logger.error("Failed to add note", err);
+            throw err;
         }
     },
 
     updateNote: async (id, changes) => {
         try {
-            await noteRepository.update(id, changes);
+            const toEncrypt = { title: "", content: "", ...changes };
+            const encrypted = await encryptNoteFields(toEncrypt);
+            const finalChanges: Partial<Note> = { ...changes };
+            if (changes.title !== undefined) finalChanges.title = encrypted.title;
+            if (changes.content !== undefined) finalChanges.content = encrypted.content;
+            await noteRepository.update(id, finalChanges);
             await get().loadNotes();
         } catch (err) {
             logger.error("Failed to update note", err);
@@ -79,7 +92,8 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     searchNotes: async (query) => {
         set({ loading: true });
         try {
-            const notes = await noteRepository.search(query);
+            const raw = await noteRepository.search(query);
+            const notes = await decryptArray(raw, decryptNoteFields);
             set({ notes, loading: false });
         } catch (err) {
             logger.error("Failed to search notes", err);

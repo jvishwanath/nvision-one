@@ -99,3 +99,33 @@ export async function countCompletedTasks(userId: string): Promise<number> {
     .where(and(eq(tasks.userId, userId), eq(tasks.completed, true)));
   return row?.value ?? 0;
 }
+
+export async function listSharedTasks(userId: string): Promise<Array<Task & { _shared: true; _permission: string; _ownerEmail: string }>> {
+  const { shares, tasks, users } = getSchema();
+  const rows = await db
+    .select({
+      id: tasks.id,
+      userId: tasks.userId,
+      title: tasks.title,
+      description: tasks.description,
+      priority: tasks.priority,
+      dueDate: tasks.dueDate,
+      completed: tasks.completed,
+      subtasks: tasks.subtasks,
+      createdAt: tasks.createdAt,
+      updatedAt: tasks.updatedAt,
+      permission: shares.permission,
+      ownerEmail: users.email,
+    })
+    .from(shares)
+    .innerJoin(tasks, eq(shares.itemId, tasks.id))
+    .innerJoin(users, eq(shares.ownerId, users.id))
+    .where(and(eq(shares.sharedWith, userId), eq(shares.itemType, "task")));
+
+  return rows.map((r: typeof rows[number]) => ({
+    ...toClientTask(r as TaskRow),
+    _shared: true as const,
+    _permission: r.permission,
+    _ownerEmail: r.ownerEmail,
+  }));
+}
